@@ -100,6 +100,158 @@ DANGER = "#ef4444"
 ERROR_BG = "#fee2e2"
 ERROR_FG = "#dc2626"
 BORDER = "#e5e7eb"
+DISABLED_BG = "#e5e7eb"
+DISABLED_FG = "#94a3b8"
+
+def darken_hex(color, factor=0.9):
+    color = color.lstrip("#")
+    if len(color) != 6:
+        return "#" + color
+    try:
+        red = int(color[0:2], 16)
+        green = int(color[2:4], 16)
+        blue = int(color[4:6], 16)
+    except ValueError:
+        return "#" + color
+    return "#{:02x}{:02x}{:02x}".format(
+        max(0, int(red * factor)),
+        max(0, int(green * factor)),
+        max(0, int(blue * factor)),
+    )
+
+class AppButton(tk.Frame):
+    def __init__(
+        self,
+        parent,
+        text="",
+        bg=ACCENT,
+        fg="white",
+        font=("Segoe UI", 10, "bold"),
+        command=None,
+        state="normal",
+        padx=14,
+        pady=8,
+        cursor="hand2",
+        disabled_bg=DISABLED_BG,
+        disabled_fg=DISABLED_FG,
+        **kwargs
+    ):
+        frame_kwargs = {
+            "bg": bg,
+            "bd": 0,
+            "highlightthickness": 0,
+            "takefocus": 0,
+        }
+        for key in ("width", "height"):
+            if key in kwargs:
+                frame_kwargs[key] = kwargs[key]
+        super().__init__(parent, **frame_kwargs)
+        self._text = text
+        self._normal_bg = bg
+        self._normal_fg = fg
+        self._active_bg = darken_hex(bg, 0.92)
+        self._disabled_bg = disabled_bg
+        self._disabled_fg = disabled_fg
+        self._command = command
+        self._state = state
+        self._cursor = cursor
+
+        self.label = tk.Label(
+            self,
+            text=text,
+            bg=bg,
+            fg=fg,
+            font=font,
+            bd=0,
+            padx=padx,
+            pady=pady,
+            anchor="center"
+        )
+        self.label.pack(fill="both", expand=True)
+
+        for widget in (self, self.label):
+            widget.bind("<Button-1>", self._on_click)
+            widget.bind("<Enter>", self._on_enter)
+            widget.bind("<Leave>", self._on_leave)
+
+        self.config(state=state)
+
+    def _on_click(self, _event=None):
+        if self._state != "normal":
+            return "break"
+        if self._command:
+            self._command()
+        return "break"
+
+    def _on_enter(self, _event=None):
+        if self._state == "normal":
+            self._paint(self._active_bg, self._normal_fg)
+
+    def _on_leave(self, _event=None):
+        self._refresh_style()
+
+    def _paint(self, bg, fg):
+        tk.Frame.configure(self, bg=bg)
+        self.label.configure(bg=bg, fg=fg)
+
+    def _refresh_style(self):
+        if self._state == "normal":
+            self._paint(self._normal_bg, self._normal_fg)
+            tk.Frame.configure(self, cursor=self._cursor)
+            self.label.configure(cursor=self._cursor)
+        else:
+            self._paint(self._disabled_bg, self._disabled_fg)
+            tk.Frame.configure(self, cursor="")
+            self.label.configure(cursor="")
+
+    def configure(self, cnf=None, **kwargs):
+        options = {}
+        if cnf:
+            options.update(cnf)
+        options.update(kwargs)
+
+        if "state" in options:
+            self._state = options.pop("state")
+        if "text" in options:
+            self._text = options.pop("text")
+            self.label.configure(text=self._text)
+        if "command" in options:
+            self._command = options.pop("command")
+        if "bg" in options:
+            self._normal_bg = options.pop("bg")
+            self._active_bg = darken_hex(self._normal_bg, 0.92)
+        if "background" in options:
+            self._normal_bg = options.pop("background")
+            self._active_bg = darken_hex(self._normal_bg, 0.92)
+        if "fg" in options:
+            self._normal_fg = options.pop("fg")
+        if "foreground" in options:
+            self._normal_fg = options.pop("foreground")
+        if "font" in options:
+            self.label.configure(font=options.pop("font"))
+        if "cursor" in options:
+            self._cursor = options.pop("cursor")
+
+        ignored = {
+            "relief", "activebackground", "activeforeground",
+            "selectbackground", "selectforeground", "disabledforeground",
+        }
+        for key in list(options.keys()):
+            if key in ignored:
+                options.pop(key)
+
+        if options:
+            tk.Frame.configure(self, **options)
+        self._refresh_style()
+
+    config = configure
+
+    def cget(self, key):
+        if key == "state":
+            return self._state
+        if key == "text":
+            return self._text
+        return tk.Frame.cget(self, key)
 
 def format_exception_message(title, exc):
     return (
@@ -770,9 +922,9 @@ def get_today_orders():
                 record["_normalized_date"] = normalized_date
                 record["_existing_scanned_codes"] = scanned_codes
                 today_orders.append(record)
-        
+
         return today_orders, sheet
-        
+
     except Exception as e:
         logging.exception("Не удалось загрузить данные из Google Sheets")
         raise
@@ -1022,68 +1174,68 @@ def print_summary(address, all_products):
 
         def s(value):
             return int(value * scale)
-        
+
         products_per_page = 3
         pages = []
         for i in range(0, len(all_products), products_per_page):
             pages.append(all_products[i:i + products_per_page])
-        
+
         printed_files = []
-        
+
         for page_idx, page_products in enumerate(pages):
             img = Image.new("RGB", (width_px, height_px), "white")
             draw = ImageDraw.Draw(img)
-            
+
             margin = s(10)
             inner_width = width_px - (margin * 2)
             inner_height = height_px - (margin * 2)
-            
+
             draw.rectangle([margin, margin, width_px - margin, height_px - margin], outline="#333333", width=max(1, s(2)))
-            
+
             font_title = load_font(["arialbd.ttf", "Arial Bold.ttf"], s(14))
             font_text = load_font(["arial.ttf", "Arial.ttf"], s(11))
             font_small = load_font(["arial.ttf", "Arial.ttf"], s(9))
             font_bold = load_font(["arialbd.ttf", "Arial Bold.ttf"], s(12))
-            
+
             y = margin + s(8)
             x = margin + s(8)
             line_height = s(18)
-            
+
             draw.text((x, y), f"СВОДНЫЙ ОТЧЁТ ПО АДРЕСУ", fill="black", font=font_title)
             y += line_height + s(5)
-            
+
             addr_lines = wrap_text(address, 34)
             for line in addr_lines:
                 draw.text((x, y), line, fill="black", font=font_small)
                 y += line_height - s(2)
             y += s(5)
-            
+
             if all_products:
                 client = all_products[0].get('Клиент', '')
                 draw.text((x, y), f"Клиент: {client[:35]}", fill="black", font=font_text)
                 y += line_height
-            
+
             if all_products:
                 rep = all_products[0].get('Торговый представитель', '')
                 draw.text((x, y), f"Торг.пред: {rep[:35]}", fill="black", font=font_text)
                 y += line_height + s(5)
-            
+
             draw.line([(x, y), (x + inner_width - s(16), y)], fill="#cccccc", width=max(1, s(1)))
             y += s(10)
-            
+
             page_text = f"Стр. {page_idx + 1} из {len(pages)}"
             draw.text((width_px - margin - s(60), margin + s(8)), page_text, fill="gray", font=font_small)
-            
+
             draw.text((x, y), "№", fill="black", font=font_bold)
             draw.text((x + s(25), y), "Товар", fill="black", font=font_bold)
             draw.text((x + s(200), y), "Блоков", fill="black", font=font_bold)
             draw.text((x + s(260), y), "ШТ", fill="black", font=font_bold)
             y += line_height + s(3)
             draw.line([(x, y - s(5)), (x + inner_width - s(16), y - s(5))], fill="#000000", width=max(1, s(1)))
-            
+
             total_blocks = 0
             total_shields = 0
-            
+
             for idx, product in enumerate(page_products):
                 product_name = product.get('Товары', '')[:22]
                 blocks = product.get('Отсканировано', 0)
@@ -1091,26 +1243,26 @@ def print_summary(address, all_products):
                 shields = blocks * pieces_per_block
                 total_blocks += blocks
                 total_shields += shields
-                
+
                 draw.text((x, y), f"{idx + 1 + (page_idx * products_per_page)}", fill="black", font=font_text)
                 draw.text((x + s(25), y), product_name, fill="black", font=font_text)
                 draw.text((x + s(205), y), str(blocks), fill="black", font=font_text)
                 draw.text((x + s(265), y), str(shields), fill="black", font=font_text)
                 y += line_height
-                
+
                 if y > height_px - s(60) and idx < len(page_products) - 1:
                     draw.text((x, height_px - margin - s(12)), datetime.now().strftime("%d.%m.%Y %H:%M"), fill="gray", font=font_small)
                     break
-            
+
             draw.line([(x, y), (x + inner_width - s(16), y)], fill="#cccccc", width=max(1, s(1)))
             y += s(8)
-            
+
             draw.text((x, y), f"ИТОГО:", fill="black", font=font_bold)
             draw.text((x + s(205), y), str(total_blocks), fill="black", font=font_bold)
             draw.text((x + s(265), y), str(total_shields), fill="black", font=font_bold)
-            
+
             draw.text((x, height_px - margin - s(12)), datetime.now().strftime("%d.%m.%Y %H:%M"), fill="gray", font=font_small)
-            
+
             temp_file = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
             img.save(temp_file.name, dpi=(LABEL_DPI, LABEL_DPI))
             temp_file.close()
@@ -1118,7 +1270,7 @@ def print_summary(address, all_products):
 
             if not send_file_to_printer(temp_file.name):
                 return None
-        
+
         return printed_files
     except Exception as e:
         logging.exception("Ошибка печати сводного листа")
@@ -1417,7 +1569,7 @@ class ScanningApp(tk.Tk):
         self.title("📦 Система учёта сканирования блоков")
         self.configure(bg=BG_MAIN)
         self.geometry("1250x780")
-        
+
         self.today_orders = []
         self.sheet = None
         self.all_existing_codes = set()
@@ -1437,18 +1589,18 @@ class ScanningApp(tk.Tk):
         self.product_catalog = load_product_catalog()
         os.makedirs(BACKUP_DIR, exist_ok=True)
         os.makedirs(REPORTS_DIR, exist_ok=True)
-        
+
         self._build_ui()
         self.center_window()
         self.after(100, lambda: self.scan_entry.focus_set())
         self.after(150, lambda: self.refresh_from_sheet(initial=True))
         self.after(500, self.check_pending_prints)
         self.protocol("WM_DELETE_WINDOW", self.on_close)
-    
+
     def load_data(self, show_empty_warning=True):
         self.today_orders, self.sheet, self.all_existing_codes = fetch_sheet_data()
         if show_empty_warning and not self.today_orders:
-            messagebox.showwarning("Нет заданий", 
+            messagebox.showwarning("Нет заданий",
                 f"На сегодня ({datetime.now().strftime('%d.%m.%Y')}) нет заданий.\n\n"
                 f"Проверьте:\n"
                 f"1. В таблице есть строка с этой датой\n"
@@ -1518,13 +1670,13 @@ class ScanningApp(tk.Tk):
 
     def clear_busy(self):
         self.operation_in_progress = False
-    
+
     def center_window(self):
         self.update_idletasks()
         x = (self.winfo_screenwidth() - self.winfo_width()) // 2
         y = (self.winfo_screenheight() - self.winfo_height()) // 2
         self.geometry(f"+{x}+{y}")
-    
+
     def show_error(self, message, popup=True):
         logging.warning("Ошибка для пользователя: %s", message)
         self.status_var.set(f"❌ {message}")
@@ -1567,12 +1719,12 @@ class ScanningApp(tk.Tk):
             )
         except Exception:
             pass
-    
+
     def clear_error(self):
         self.status_var.set("✅ Готов к работе")
         self.status_label.config(bg=BG_MAIN, fg=FG_MUTED)
         self.error_timer = None
-    
+
     def validate_code(self, code):
         if not code:
             return False, "Код пустой"
@@ -1589,7 +1741,7 @@ class ScanningApp(tk.Tk):
         if not re.fullmatch(r'[\x1d\x21-\x7E]+', code):
             return False, "Код содержит недопустимые символы"
         return True, ""
-    
+
     def undo_last_scan(self):
         if self.operation_in_progress:
             self.show_error("Дождитесь завершения текущей операции")
@@ -1598,7 +1750,7 @@ class ScanningApp(tk.Tk):
         if not self.current_order:
             self.show_error("Нет активной позиции")
             return
-        
+
         if not self.scanned_codes:
             self.show_error("Нет кодов для отмены")
             return
@@ -1606,52 +1758,52 @@ class ScanningApp(tk.Tk):
         if len(self.scanned_codes) <= self.saved_codes_count:
             self.show_error("Нельзя отменить коды, уже записанные в Google Sheets")
             return
-        
+
         removed_code = self.scanned_codes.pop()
         self.all_existing_codes.discard(removed_code)
         write_scan_backup("undo_scan", self.current_order, code=removed_code, codes=self.scanned_codes.copy())
-        
+
         plan_blocks = get_plan_blocks(self.current_order)
-        
+
         scanned_count = len(self.scanned_codes)
         self.progress_label.config(text=f"{scanned_count} / {plan_blocks}")
         self.last_code_label.config(text=f"Отменён код: {removed_code[:40]}...")
         self.status_var.set(f"↩️ Отменён последний код ({scanned_count}/{plan_blocks})")
-        
+
         if scanned_count < plan_blocks:
             self.next_product_btn.config(state="disabled")
             self.finish_btn.config(state="normal")
-        
+
         self.scan_entry.focus_set()
-    
+
     def _build_ui(self):
         main = tk.Frame(self, bg=BG_MAIN)
         main.pack(fill="both", expand=True, padx=25, pady=20)
-        
-        title = tk.Label(main, text="📦 УЧЁТ СКАНИРОВАНИЯ БЛОКОВ", 
+
+        title = tk.Label(main, text="📦 УЧЁТ СКАНИРОВАНИЯ БЛОКОВ",
                         bg=BG_MAIN, fg=FG_TEXT, font=("Segoe UI", 24, "bold"))
         title.pack(pady=(0, 5))
-        
-        date_label = tk.Label(main, text=f"Дата: {datetime.now().strftime('%d.%m.%Y')}", 
+
+        date_label = tk.Label(main, text=f"Дата: {datetime.now().strftime('%d.%m.%Y')}",
                              bg=BG_MAIN, fg=FG_MUTED, font=("Segoe UI", 12))
         date_label.pack(pady=(0, 20))
-        
+
         content = tk.Frame(main, bg=BG_MAIN)
         content.pack(fill="both", expand=True)
-        
+
         left_panel = tk.Frame(content, bg=BG_MAIN)
         left_panel.pack(side="left", fill="both", expand=True, padx=(0, 15))
-        
+
         list_card = tk.Frame(left_panel, bg=BG_CARD, relief="flat", bd=1, highlightbackground=BORDER)
         list_card.pack(fill="both", expand=True)
-        
+
         list_header = tk.Frame(list_card, bg=BG_CARD)
         list_header.pack(fill="x", padx=20, pady=(15, 10))
 
         tk.Label(list_header, text="🏢 Заказы на сегодня",
                 bg=BG_CARD, fg=FG_TEXT, font=("Segoe UI", 14, "bold")).pack(side="left")
 
-        self.refresh_btn = tk.Button(list_header, text="🔄 ОБНОВИТЬ",
+        self.refresh_btn = AppButton(list_header, text="🔄 ОБНОВИТЬ",
                                      bg=INFO, fg="white", font=("Segoe UI", 9, "bold"),
                                      command=self.refresh_from_sheet, relief="flat", cursor="hand2")
         self.refresh_btn.pack(side="right")
@@ -1659,14 +1811,15 @@ class ScanningApp(tk.Tk):
         self.search_var = tk.StringVar()
         self.search_var.trace_add("write", lambda *_: self.refresh_legal_list())
         self.search_entry = tk.Entry(list_card, textvariable=self.search_var, bg=BG_MAIN, fg=FG_TEXT,
-                                     font=("Segoe UI", 11), relief="flat", bd=1,
-                                     highlightbackground=BORDER)
+                                     font=("Segoe UI", 11), relief="flat", bd=0,
+                                     highlightbackground=BORDER, highlightcolor=ACCENT,
+                                     highlightthickness=1, insertbackground=FG_TEXT)
         self.search_entry.pack(fill="x", padx=15, pady=(0, 10))
 
         tools_frame = tk.Frame(list_card, bg=BG_CARD)
         tools_frame.pack(fill="x", padx=15, pady=(0, 10))
 
-        self.import_btn = tk.Button(
+        self.import_btn = AppButton(
             tools_frame,
             text="📥 ИМПОРТ EXCEL",
             bg=SUCCESS,
@@ -1678,7 +1831,7 @@ class ScanningApp(tk.Tk):
         )
         self.import_btn.pack(side="left", fill="x", expand=True, padx=(0, 6))
 
-        self.catalog_btn = tk.Button(
+        self.catalog_btn = AppButton(
             tools_frame,
             text="📦 ТОВАРЫ",
             bg=WARNING,
@@ -1690,7 +1843,7 @@ class ScanningApp(tk.Tk):
         )
         self.catalog_btn.pack(side="left", fill="x", expand=True, padx=(0, 6))
 
-        self.control_btn = tk.Button(
+        self.control_btn = AppButton(
             tools_frame,
             text="📊 КОНТРОЛЬ",
             bg=INFO,
@@ -1704,95 +1857,97 @@ class ScanningApp(tk.Tk):
 
         list_container = tk.Frame(list_card, bg=BG_CARD)
         list_container.pack(fill="both", expand=True, padx=15, pady=(0, 15))
-        
-        self.legal_listbox = tk.Listbox(list_container, bg=BG_CARD, fg=FG_TEXT, 
+
+        self.legal_listbox = tk.Listbox(list_container, bg=BG_CARD, fg=FG_TEXT,
                                         font=("Segoe UI", 11), selectmode=tk.SINGLE,
                                         relief="flat", selectbackground=ACCENT, selectforeground="white")
         self.legal_listbox.pack(side="left", fill="both", expand=True)
-        
+
         scrollbar = tk.Scrollbar(list_container, orient="vertical", command=self.legal_listbox.yview)
         scrollbar.pack(side="right", fill="y")
         self.legal_listbox.config(yscrollcommand=scrollbar.set)
-        
+
         self.refresh_legal_list()
-        
-        self.select_btn = tk.Button(left_panel, text="✅ ВЫБРАТЬ ЗАКАЗ", 
+
+        self.select_btn = AppButton(left_panel, text="✅ ВЫБРАТЬ ЗАКАЗ",
                                    bg=ACCENT, fg="white", font=("Segoe UI", 12, "bold"),
                                    command=self.select_legal_entity, relief="flat", pady=12,
                                    cursor="hand2")
         self.select_btn.pack(pady=(15, 0), fill="x")
-        
+
         right_panel = tk.Frame(content, bg=BG_MAIN)
         right_panel.pack(side="right", fill="both", expand=True, padx=(15, 0))
-        
+
         info_card = tk.Frame(right_panel, bg=BG_CARD, relief="flat", bd=1, highlightbackground=BORDER)
         info_card.pack(fill="x", pady=(0, 15))
-        
-        tk.Label(info_card, text="📋 ТЕКУЩАЯ ПОЗИЦИЯ", 
+
+        tk.Label(info_card, text="📋 ТЕКУЩАЯ ПОЗИЦИЯ",
                 bg=BG_CARD, fg=ACCENT, font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=20, pady=(15, 10))
-        
-        self.current_info = tk.Label(info_card, text="Не выбрано", 
+
+        self.current_info = tk.Label(info_card, text="Не выбрано",
                                     bg=BG_CARD, fg=FG_TEXT, font=("Segoe UI", 11),
                                     wraplength=400, justify="left")
         self.current_info.pack(anchor="w", padx=20, pady=(0, 10))
-        
+
         positions_frame = tk.Frame(info_card, bg=BG_CARD)
         positions_frame.pack(fill="x", padx=20, pady=(0, 10))
-        
+
         self.position_label = tk.Label(positions_frame, text="", bg=BG_CARD, fg=WARNING, font=("Segoe UI", 11, "bold"))
         self.position_label.pack(side="left")
-        
+
         progress_frame = tk.Frame(info_card, bg=BG_CARD)
         progress_frame.pack(fill="x", padx=20, pady=(0, 15))
-        
+
         tk.Label(progress_frame, text="Сканирование:", bg=BG_CARD, fg=FG_MUTED, font=("Segoe UI", 11)).pack(side="left")
         self.progress_label = tk.Label(progress_frame, text="0 / 0", bg=BG_CARD, fg=SUCCESS, font=("Segoe UI", 14, "bold"))
         self.progress_label.pack(side="left", padx=(10, 0))
-        
+
         scan_card = tk.Frame(right_panel, bg=BG_CARD, relief="flat", bd=1, highlightbackground=BORDER)
         scan_card.pack(fill="x", pady=(0, 15))
-        
-        tk.Label(scan_card, text="🔍 СКАНИРОВАНИЕ КОДА", 
+
+        tk.Label(scan_card, text="🔍 СКАНИРОВАНИЕ КОДА",
                 bg=BG_CARD, fg=ACCENT, font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=20, pady=(15, 10))
-        
+
         self.scan_entry = tk.Entry(scan_card, bg=BG_MAIN, fg=FG_TEXT, font=("Segoe UI", 14),
-                                   relief="flat", bd=1, highlightbackground=BORDER)
+                                   relief="flat", bd=0, highlightbackground=BORDER,
+                                   highlightcolor=ACCENT, highlightthickness=1,
+                                   insertbackground=FG_TEXT)
         self.scan_entry.pack(fill="x", padx=20, pady=(0, 10))
         self.scan_entry.bind("<Return>", self.on_scan)
-        
+
         self.last_code_label = tk.Label(scan_card, text="", bg=BG_CARD, fg=SUCCESS, font=("Segoe UI", 10))
         self.last_code_label.pack(anchor="w", padx=20, pady=(5, 5))
-        
+
         actions_frame = tk.Frame(right_panel, bg=BG_MAIN)
         actions_frame.pack(fill="x", pady=(0, 15))
-        
-        self.undo_btn = tk.Button(actions_frame, text="↩️ ОТМЕНИТЬ ПОСЛЕДНИЙ КОД", 
+
+        self.undo_btn = AppButton(actions_frame, text="↩️ ОТМЕНИТЬ ПОСЛЕДНИЙ КОД",
                                  bg=DANGER, fg="white", font=("Segoe UI", 10, "bold"),
                                  command=self.undo_last_scan, relief="flat", state="disabled",
                                  cursor="hand2")
         self.undo_btn.pack(side="left", fill="x", expand=True, padx=(0, 10), pady=5)
-        
-        self.next_product_btn = tk.Button(actions_frame, text="➡️ СЛЕДУЮЩАЯ ПОЗИЦИЯ", 
+
+        self.next_product_btn = AppButton(actions_frame, text="➡️ СЛЕДУЮЩАЯ ПОЗИЦИЯ",
                                          bg=WARNING, fg="white", font=("Segoe UI", 11, "bold"),
                                          command=self.next_product, relief="flat", state="disabled",
                                          cursor="hand2")
         self.next_product_btn.pack(side="left", fill="x", expand=True, padx=(0, 10), pady=5)
-        
-        self.finish_btn = tk.Button(actions_frame, text="🏁 ЗАВЕРШИТЬ ЗАКАЗ", 
+
+        self.finish_btn = AppButton(actions_frame, text="🏁 ЗАВЕРШИТЬ ЗАКАЗ",
                                    bg=SUCCESS, fg="white", font=("Segoe UI", 11, "bold"),
                                    command=self.finish_legal_entity, relief="flat", state="disabled",
                                    cursor="hand2")
         self.finish_btn.pack(side="right", fill="x", expand=True, padx=(10, 0), pady=5)
-        
+
         stats_card = tk.Frame(right_panel, bg=BG_CARD, relief="flat", bd=1, highlightbackground=BORDER)
         stats_card.pack(fill="x")
-        
-        tk.Label(stats_card, text="📊 СТАТИСТИКА", 
+
+        tk.Label(stats_card, text="📊 СТАТИСТИКА",
                 bg=BG_CARD, fg=ACCENT, font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=20, pady=(15, 10))
-        
+
         stats_frame = tk.Frame(stats_card, bg=BG_CARD)
         stats_frame.pack(fill="x", padx=20, pady=(0, 15))
-        
+
         self.completed_count_label = tk.Label(stats_frame, text="Выполнено: 0", bg=BG_CARD, fg=FG_TEXT, font=("Segoe UI", 11))
         self.completed_count_label.pack(side="left", padx=(0, 20))
 
@@ -1807,21 +1962,21 @@ class ScanningApp(tk.Tk):
 
         self.pending_saves_label = tk.Label(stats_frame_2, text="Очередь записи: 0", bg=BG_CARD, fg=FG_TEXT, font=("Segoe UI", 10))
         self.pending_saves_label.pack(side="left")
-        
-        self.report_btn = tk.Button(right_panel, text="📊 ЗАВЕРШИТЬ ДЕНЬ (ОТЧЁТ)", 
+
+        self.report_btn = AppButton(right_panel, text="📊 ЗАВЕРШИТЬ ДЕНЬ (ОТЧЁТ)",
                                    bg=INFO, fg="white", font=("Segoe UI", 11, "bold"),
                                    command=self.end_day, relief="flat", pady=10,
                                    cursor="hand2")
         self.report_btn.pack(fill="x", pady=(10, 0))
-        
+
         status_frame = tk.Frame(main, bg=BG_MAIN)
         status_frame.pack(fill="x", pady=(20, 0))
-        
+
         self.status_var = tk.StringVar(value="✅ Готов к работе")
-        self.status_label = tk.Label(status_frame, textvariable=self.status_var, 
+        self.status_label = tk.Label(status_frame, textvariable=self.status_var,
                                      bg=BG_MAIN, fg=FG_MUTED, font=("Segoe UI", 10))
         self.status_label.pack()
-    
+
     def refresh_legal_list(self):
         self.legal_listbox.delete(0, tk.END)
         self.visible_order_groups = []
@@ -1842,7 +1997,7 @@ class ScanningApp(tk.Tk):
             if search_text and search_text not in search_area:
                 continue
             grouped_orders.setdefault((client, address), []).append(order)
-        
+
         for key in sorted(grouped_orders.keys(), key=lambda item: (item[0].lower(), item[1].lower())):
             client, address = key
             count = len(grouped_orders[key])
@@ -2072,7 +2227,19 @@ class ScanningApp(tk.Tk):
             row = tk.Frame(right, bg=BG_CARD)
             row.pack(fill="x", padx=12, pady=5)
             tk.Label(row, text=label, bg=BG_CARD, fg=FG_MUTED, font=("Segoe UI", 10), width=18, anchor="w").pack(side="left")
-            entry = tk.Entry(row, textvariable=variable, bg=BG_MAIN, fg=FG_TEXT, relief="flat", font=("Segoe UI", 10))
+            entry = tk.Entry(
+                row,
+                textvariable=variable,
+                bg=BG_MAIN,
+                fg=FG_TEXT,
+                relief="flat",
+                bd=0,
+                font=("Segoe UI", 10),
+                highlightbackground=BORDER,
+                highlightcolor=ACCENT,
+                highlightthickness=1,
+                insertbackground=FG_TEXT,
+            )
             entry.pack(side="left", fill="x", expand=True)
             return entry
 
@@ -2152,13 +2319,13 @@ class ScanningApp(tk.Tk):
 
         actions = tk.Frame(right, bg=BG_CARD)
         actions.pack(fill="x", padx=12, pady=(12, 0))
-        tk.Button(actions, text="СОХРАНИТЬ", bg=SUCCESS, fg="white", font=("Segoe UI", 9, "bold"), relief="flat", command=save_current).pack(side="left", fill="x", expand=True, padx=(0, 6))
-        tk.Button(actions, text="НОВЫЙ", bg=INFO, fg="white", font=("Segoe UI", 9, "bold"), relief="flat", command=new_product).pack(side="left", fill="x", expand=True, padx=(0, 6))
-        tk.Button(actions, text="УДАЛИТЬ", bg=DANGER, fg="white", font=("Segoe UI", 9, "bold"), relief="flat", command=delete_product).pack(side="left", fill="x", expand=True)
+        AppButton(actions, text="СОХРАНИТЬ", bg=SUCCESS, fg="white", font=("Segoe UI", 9, "bold"), relief="flat", command=save_current).pack(side="left", fill="x", expand=True, padx=(0, 6))
+        AppButton(actions, text="НОВЫЙ", bg=INFO, fg="white", font=("Segoe UI", 9, "bold"), relief="flat", command=new_product).pack(side="left", fill="x", expand=True, padx=(0, 6))
+        AppButton(actions, text="УДАЛИТЬ", bg=DANGER, fg="white", font=("Segoe UI", 9, "bold"), relief="flat", command=delete_product).pack(side="left", fill="x", expand=True)
 
         close_frame = tk.Frame(right, bg=BG_CARD)
         close_frame.pack(fill="x", padx=12, pady=(16, 12))
-        tk.Button(close_frame, text="ЗАКРЫТЬ", bg=FG_MUTED, fg="white", font=("Segoe UI", 9, "bold"), relief="flat", command=dialog.destroy).pack(side="right")
+        AppButton(close_frame, text="ЗАКРЫТЬ", bg=FG_MUTED, fg="white", font=("Segoe UI", 9, "bold"), relief="flat", command=dialog.destroy).pack(side="right")
 
     def show_control_panel(self):
         if self.operation_in_progress:
@@ -2218,7 +2385,7 @@ class ScanningApp(tk.Tk):
                 products_text = "Нет данных"
             tk.Label(container, text=products_text, bg=BG_CARD, fg=FG_TEXT, font=("Segoe UI", 10), justify="left", wraplength=540).pack(anchor="w")
 
-            tk.Button(container, text="ЗАКРЫТЬ", bg=FG_MUTED, fg="white", font=("Segoe UI", 9, "bold"), relief="flat", command=dialog.destroy).pack(anchor="e", pady=(16, 0))
+            AppButton(container, text="ЗАКРЫТЬ", bg=FG_MUTED, fg="white", font=("Segoe UI", 9, "bold"), relief="flat", command=dialog.destroy).pack(anchor="e", pady=(16, 0))
 
         def on_error(exc):
             self.show_critical_error("Не удалось собрать панель контроля", exc)
@@ -2243,12 +2410,12 @@ class ScanningApp(tk.Tk):
         if not self.today_orders:
             messagebox.showwarning("Ошибка", "Нет доступных юридических лиц!")
             return
-        
+
         selection = self.legal_listbox.curselection()
         if not selection:
             messagebox.showwarning("Ошибка", "Выберите заказ из списка")
             return
-        
+
         if selection[0] >= len(self.visible_order_groups):
             messagebox.showwarning("Ошибка", "Выбранный заказ не найден в списке")
             return
@@ -2266,16 +2433,16 @@ class ScanningApp(tk.Tk):
         self.current_product_idx = 0
         self.scanned_codes = []
         self.current_legal_entity_products = []
-        
+
         self.load_current_product()
-        
+
         self.status_var.set(f"✅ Выбран заказ: {legal_entity} | {address}")
         self.scan_entry.focus_set()
-    
+
     def load_current_product(self):
         if self.current_product_idx >= len(self.current_legal_entity_orders):
             return
-        
+
         self.current_order = self.current_legal_entity_orders[self.current_product_idx]
 
         plan_blocks = get_plan_blocks(self.current_order)
@@ -2287,12 +2454,12 @@ class ScanningApp(tk.Tk):
 📦 Товар: {self.current_order.get('Товары', '')}
 💳 Тип оплаты: {self.current_order.get('Тип оплаты', '')}
 📦 План: {plan_blocks} блоков (1 блок = {pieces_per_block} ШТ)"""
-        
+
         self.current_info.config(text=info_text)
-        
+
         total_products = len(self.current_legal_entity_orders)
         self.position_label.config(text=f"Позиция {self.current_product_idx + 1} из {total_products}")
-        
+
         existing_codes = self.current_order.get("_existing_scanned_codes", [])
         self.scanned_codes = existing_codes.copy()
         self.saved_codes_count = len(existing_codes)
@@ -2309,7 +2476,7 @@ class ScanningApp(tk.Tk):
             self.next_product_btn.config(state="normal")
             self.finish_btn.config(state="disabled")
         self.scan_entry.focus_set()
-    
+
     def on_scan(self, event=None):
         if self.operation_in_progress:
             self.show_error("Дождитесь завершения текущей операции")
@@ -2319,38 +2486,38 @@ class ScanningApp(tk.Tk):
         if not self.current_order:
             messagebox.showwarning("Ошибка", "Сначала выберите заказ")
             return
-        
+
         code = self.scan_entry.get().strip()
         if not code:
             return
-        
+
         is_valid, error_msg = self.validate_code(code)
         if not is_valid:
             self.show_error(error_msg)
             self.scan_entry.delete(0, tk.END)
             return
-        
+
         plan_blocks = get_plan_blocks(self.current_order)
         if plan_blocks <= 0:
             self.show_error("В заказе не указано корректное 'Кол-во блок'")
             self.scan_entry.delete(0, tk.END)
             return
-        
+
         if len(self.scanned_codes) >= plan_blocks:
             self.show_error(f"План выполнен! Нельзя сканировать больше {plan_blocks} блоков")
             self.scan_entry.delete(0, tk.END)
             return
-        
+
         if code in self.scanned_codes:
             self.show_error("Код уже отсканирован в этой позиции")
             self.scan_entry.delete(0, tk.END)
             return
-        
+
         if code in self.all_existing_codes:
             self.show_error(f"Код {code[:20]}... уже существует в Google Sheets!")
             self.scan_entry.delete(0, tk.END)
             return
-        
+
         for completed in self.completed_orders:
             if code in completed.get("Коды", []):
                 self.show_error("Код уже использован в другом задании сегодня")
@@ -2361,24 +2528,24 @@ class ScanningApp(tk.Tk):
             self.show_error("Не удалось сохранить локальный backup. Код не принят")
             self.scan_entry.delete(0, tk.END)
             return
-        
+
         self.scanned_codes.append(code)
         self.all_existing_codes.add(code)
         scanned_count = len(self.scanned_codes)
-        
+
         self.progress_label.config(text=f"{scanned_count} / {plan_blocks}")
         self.last_code_label.config(text=f"Последний код: {code[:40]}...")
         self.status_var.set(f"✅ Отсканирован код ({scanned_count}/{plan_blocks})")
         self.status_label.config(bg=BG_MAIN, fg=FG_MUTED)
         self.scan_entry.delete(0, tk.END)
-        
+
         if scanned_count >= plan_blocks:
             self.status_var.set(f"🎯 Позиция выполнена! Нажмите 'Следующая позиция'")
             self.next_product_btn.config(state="normal")
             self.finish_btn.config(state="disabled")
-        
+
         self.scan_entry.focus_set()
-    
+
     def next_product(self):
         if self.operation_in_progress:
             self.show_error("Дождитесь завершения текущей операции")
@@ -2386,11 +2553,11 @@ class ScanningApp(tk.Tk):
 
         if not self.current_order:
             return
-        
+
         plan_blocks = get_plan_blocks(self.current_order)
-	        
+
         scanned_count = len(self.scanned_codes)
-	        
+
         if scanned_count != plan_blocks:
             self.show_error(f"Отсканировано {scanned_count} из {plan_blocks} блоков. Завершите позицию!")
             return
@@ -2464,7 +2631,7 @@ class ScanningApp(tk.Tk):
             on_success=on_success,
             on_error=on_error
         )
-    
+
     def finish_legal_entity(self, from_next_product=False):
         if self.operation_in_progress:
             self.show_error("Дождитесь завершения текущей операции")
@@ -2472,15 +2639,15 @@ class ScanningApp(tk.Tk):
 
         if not self.current_legal_entity:
             return
-        
+
         if self.current_product_idx < len(self.current_legal_entity_orders):
             self.show_error("Сначала завершите все позиции по заказу!")
             return
-        
+
         if not self.current_legal_entity_products:
             self.show_error("Нет завершённых позиций по заказу!")
             return
-        
+
         if not self.confirm_print_settings():
             self.show_error("Печать сводного листа отменена")
             self.finish_btn.config(state="normal")
@@ -2556,7 +2723,7 @@ class ScanningApp(tk.Tk):
             on_error=on_error,
             on_finally=on_finally
         )
-	    
+
     def confirm_print_settings(self):
         result = {"print": False}
         settings = load_print_settings()
@@ -2584,7 +2751,19 @@ class ScanningApp(tk.Tk):
         printer_row = tk.Frame(container, bg=BG_CARD)
         printer_row.pack(fill="x", pady=3)
         tk.Label(printer_row, text="Принтер:", bg=BG_CARD, fg=FG_MUTED, font=("Segoe UI", 10), width=18, anchor="w").pack(side="left")
-        tk.Entry(printer_row, textvariable=printer_var, bg=BG_MAIN, fg=FG_TEXT, relief="flat", font=("Segoe UI", 10)).pack(side="left", fill="x", expand=True)
+        tk.Entry(
+            printer_row,
+            textvariable=printer_var,
+            bg=BG_MAIN,
+            fg=FG_TEXT,
+            relief="flat",
+            bd=0,
+            font=("Segoe UI", 10),
+            highlightbackground=BORDER,
+            highlightcolor=ACCENT,
+            highlightthickness=1,
+            insertbackground=FG_TEXT,
+        ).pack(side="left", fill="x", expand=True)
 
         rows = [
             ("Размер листа", f"{LABEL_WIDTH_MM} x {LABEL_HEIGHT_MM} мм"),
@@ -2627,7 +2806,7 @@ class ScanningApp(tk.Tk):
         def cancel():
             dialog.destroy()
 
-        tk.Button(
+        AppButton(
             actions,
             text="ПЕЧАТАТЬ",
             bg=SUCCESS,
@@ -2640,7 +2819,7 @@ class ScanningApp(tk.Tk):
             cursor="hand2"
         ).pack(side="right", padx=(8, 0))
 
-        tk.Button(
+        AppButton(
             actions,
             text="ОТМЕНА",
             bg=FG_MUTED,
@@ -2721,7 +2900,7 @@ class ScanningApp(tk.Tk):
         pending_saves = len(load_pending_saves())
         self.active_orders_label.config(text=f"Активных заказов: {active_groups}")
         self.pending_saves_label.config(text=f"Очередь записи: {pending_saves}")
-    
+
     def end_day(self):
         if self.operation_in_progress:
             self.show_error("Дождитесь завершения текущей операции")
@@ -2730,7 +2909,7 @@ class ScanningApp(tk.Tk):
         if self.current_legal_entity:
             if not messagebox.askyesno("Внимание", "У вас есть незавершённый заказ!\n\nЗавершить день без сохранения текущего заказа?"):
                 return
-        
+
         self.set_busy("⏳ Формирую Excel-отчёт за день...")
         self.report_btn.config(state="disabled")
 
@@ -2753,15 +2932,15 @@ class ScanningApp(tk.Tk):
                     "empty": True,
                     "sheet": sheet,
                 }
-            
+
             filename = os.path.join(REPORTS_DIR, f"scan_report_{datetime.now().strftime('%d.%m.%Y_%H%M%S')}.xlsx")
-            
+
             with pd.ExcelWriter(filename, engine='openpyxl') as writer:
                 if terminal_rows:
                     pd.DataFrame(terminal_rows).to_excel(writer, sheet_name="Терминал", index=False)
                 else:
                     pd.DataFrame({"Сообщение": ["Нет данных"]}).to_excel(writer, sheet_name="Терминал", index=False)
-                
+
                 if transfer_rows:
                     pd.DataFrame(transfer_rows).to_excel(writer, sheet_name="Перечисление", index=False)
                 else:
@@ -2769,7 +2948,7 @@ class ScanningApp(tk.Tk):
 
                 if unknown_rows:
                     pd.DataFrame(unknown_rows).to_excel(writer, sheet_name="Не распознано", index=False)
-            
+
             return {
                 "empty": False,
                 "sheet": sheet,
@@ -2787,7 +2966,7 @@ class ScanningApp(tk.Tk):
                 return
 
             total_report_rows = result["total_report_rows"]
-            messagebox.showinfo("Отчёт сохранён", 
+            messagebox.showinfo("Отчёт сохранён",
                 f"📊 Отчёт сохранён: {result['filename']}\n\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
                 f"✅ Строк КИЗов: {total_report_rows}\n"
@@ -2797,7 +2976,7 @@ class ScanningApp(tk.Tk):
                 f"├─ Перечисление: {result['transfer_count']} кодов\n"
                 f"└─ Не распознано: {result['unknown_count']} кодов\n"
                 f"━━━━━━━━━━━━━━━━━━━━")
-            
+
             self.on_close()
 
         def on_error(exc):
@@ -2821,7 +3000,7 @@ class ScanningApp(tk.Tk):
             on_error=on_error,
             on_finally=on_finally
         )
-    
+
     def on_close(self):
         if self.current_order and len(self.scanned_codes) > self.saved_codes_count:
             if not messagebox.askyesno(
@@ -2833,7 +3012,7 @@ class ScanningApp(tk.Tk):
 
 if __name__ == "__main__":
     if not os.path.exists(CREDENTIALS_FILE):
-        messagebox.showerror("Ошибка", 
+        messagebox.showerror("Ошибка",
             f"Файл {CREDENTIALS_FILE} не найден!\n\n"
             f"Положите файл с учётными данными Google Sheets в папку с программой")
     else:
