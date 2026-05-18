@@ -1,0 +1,6 @@
+gspread
+oauth2client
+pillow
+pandas
+openpyxl
+pyinstaller

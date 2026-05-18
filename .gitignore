@@ -1,0 +1,17 @@
+credentials.json
+pKIS.log
+pending_prints.json
+
+scan_backups/
+reports/
+
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+build/
+dist/
+*.spec
+
+.DS_Store
