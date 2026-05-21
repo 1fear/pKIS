@@ -49,18 +49,18 @@ jobs:
       - name: Build exe
         shell: pwsh
         run: |
-          pyinstaller --clean --onefile --windowed --name pKIS main.py
+          pyinstaller --clean --onefile --windowed --name TakSklad --icon assets\TakSklad.ico main.py
 
       - name: Compute SHA256
         shell: pwsh
         run: |
-          $hash = (Get-FileHash dist\pKIS.exe -Algorithm SHA256).Hash.ToLower()
-          $hash | Out-File -FilePath dist\pKIS.exe.sha256.txt -Encoding ascii -NoNewline
-          "PKIS_EXE_SHA256=$hash" >> $env:GITHUB_ENV
+          $hash = (Get-FileHash dist\TakSklad.exe -Algorithm SHA256).Hash.ToLower()
+          $hash | Out-File -FilePath dist\TakSklad.exe.sha256.txt -Encoding ascii -NoNewline
+          "TAKSKLAD_EXE_SHA256=$hash" >> $env:GITHUB_ENV
 
       - name: Upload release assets
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "${{ steps.release.outputs.tag }}" dist\pKIS.exe dist\pKIS.exe.sha256.txt --clobber
+          gh release upload "${{ steps.release.outputs.tag }}" dist\TakSklad.exe dist\TakSklad.exe.sha256.txt --clobber

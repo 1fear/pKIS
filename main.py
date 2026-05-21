@@ -22,6 +22,8 @@ from PIL import Image, ImageDraw, ImageFont
 
 SPREADSHEET_ID = "1soHrN7Iqd3jk9iLGdUGK9APxVfRBwWXHxoI8x2Hsh1o"
 SHEET_NAME = "data"
+APP_NAME = "TakSklad"
+APP_EXECUTABLE_NAME = "TakSklad.exe"
 
 def get_app_dir():
     if getattr(sys, "frozen", False):
@@ -30,7 +32,7 @@ def get_app_dir():
 
 APP_DIR = get_app_dir()
 CREDENTIALS_FILE = os.path.join(APP_DIR, "credentials.json")
-LOG_FILE = os.path.join(APP_DIR, "pKIS.log")
+LOG_FILE = os.path.join(APP_DIR, "TakSklad.log")
 BACKUP_DIR = os.path.join(APP_DIR, "scan_backups")
 REPORTS_DIR = os.path.join(APP_DIR, "reports")
 PENDING_PRINTS_FILE = os.path.join(APP_DIR, "pending_prints.json")
@@ -43,7 +45,7 @@ IMPORT_HISTORY_FILE = os.path.join(APP_DIR, "import_history.json")
 TELEGRAM_SETTINGS_FILE = os.path.join(APP_DIR, "telegram_settings.json")
 YANDEX_GEOCODER_KEY_FILE = os.path.join(APP_DIR, "yandex_geocoder_key.txt")
 YANDEX_GEOCODER_API_KEY = "7c455cc8-0cda-46da-ac5c-e32297c2fec0"
-APP_VERSION = "1.1.2"
+APP_VERSION = "1.1.3"
 UPDATE_INFO_URL = os.environ.get(
     "PKIS_UPDATE_INFO_URL",
     "https://raw.githubusercontent.com/1fear/pKIS/main/version.json",
@@ -1826,7 +1828,7 @@ $imagePath = {powershell_quote(image_path)}
 $image = [System.Drawing.Image]::FromFile($imagePath)
 $printDocument = New-Object System.Drawing.Printing.PrintDocument
 {printer_line}
-$printDocument.DocumentName = "pKIS summary"
+$printDocument.DocumentName = "{APP_NAME} summary"
 $printDocument.DefaultPageSettings.PaperSize = New-Object System.Drawing.Printing.PaperSize("Label100x100", {paper_width}, {paper_height})
 $printDocument.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(0, 0, 0, 0)
 $printDocument.OriginAtMargins = $false
@@ -2459,7 +2461,7 @@ def download_telegram_file(token, file_path, destination_path):
     quoted_path = urllib.parse.quote(normalize_text(file_path), safe="/")
     request = urllib.request.Request(
         f"https://api.telegram.org/file/bot{token}/{quoted_path}",
-        headers={"User-Agent": f"pKIS/{APP_VERSION}"},
+        headers={"User-Agent": f"{APP_NAME}/{APP_VERSION}"},
     )
     with urllib.request.urlopen(request, timeout=TELEGRAM_FILE_DOWNLOAD_TIMEOUT_SECONDS) as response:
         with open(destination_path, "wb") as output_file:
@@ -2475,7 +2477,7 @@ def download_telegram_document_to_temp(token, document):
         raise ValueError("Поддерживаются только Excel-файлы .xlsx и .xlsm")
 
     suffix = os.path.splitext(file_name)[1].lower() or ".xlsx"
-    temp_file = tempfile.NamedTemporaryFile(prefix="pKIS_telegram_import_", suffix=suffix, delete=False)
+    temp_file = tempfile.NamedTemporaryFile(prefix=f"{APP_NAME}_telegram_import_", suffix=suffix, delete=False)
     temp_path = temp_file.name
     temp_file.close()
 
@@ -2493,7 +2495,7 @@ def download_telegram_document_to_temp(token, document):
 def create_today_log_file():
     os.makedirs(REPORTS_DIR, exist_ok=True)
     today_prefix = datetime.now().strftime("%Y-%m-%d")
-    output_path = os.path.join(REPORTS_DIR, f"pKIS_log_{today_prefix}.txt")
+    output_path = os.path.join(REPORTS_DIR, f"{APP_NAME}_log_{today_prefix}.txt")
     entry_start_re = re.compile(r"^\d{4}-\d{2}-\d{2} ")
     selected_lines = []
 
@@ -2520,7 +2522,7 @@ def create_today_log_file():
     return output_path
 
 def telegram_multipart_body(fields, file_field, file_path):
-    boundary = "----pKISBoundary" + hashlib.sha1(str(datetime.now().timestamp()).encode("utf-8")).hexdigest()
+    boundary = f"----{APP_NAME}Boundary" + hashlib.sha1(str(datetime.now().timestamp()).encode("utf-8")).hexdigest()
     chunks = []
     for key, value in fields.items():
         chunks.append(f"--{boundary}\r\n".encode("utf-8"))
@@ -2671,21 +2673,21 @@ def collect_operational_documents(
     settings = load_telegram_settings()
     documents = []
     if include_report and settings.get("send_reports"):
-        documents.append((include_report, "pKIS: Excel-отчёт за день"))
+        documents.append((include_report, f"{APP_NAME}: Excel-отчёт за день"))
     if include_scan_backup and settings.get("send_scan_backups"):
         backup_path = today_scan_backup_path()
         if safe_telegram_document_path(backup_path):
-            documents.append((backup_path, "pKIS: backup сканирования за день"))
+            documents.append((backup_path, f"{APP_NAME}: backup сканирования за день"))
     if include_pending_files and settings.get("send_pending_files"):
         for path, caption in (
-            (PENDING_SAVES_FILE, "pKIS: очередь записи в Google Sheets"),
-            (PENDING_PRINTS_FILE, "pKIS: очередь печати сводок"),
-            (PENDING_TELEGRAM_FILE, "pKIS: очередь отправки в Telegram"),
+            (PENDING_SAVES_FILE, f"{APP_NAME}: очередь записи в Google Sheets"),
+            (PENDING_PRINTS_FILE, f"{APP_NAME}: очередь печати сводок"),
+            (PENDING_TELEGRAM_FILE, f"{APP_NAME}: очередь отправки в Telegram"),
         ):
             if safe_telegram_document_path(path):
                 documents.append((path, caption))
     if include_error_log and settings.get("send_error_log") and safe_telegram_document_path(LOG_FILE):
-        documents.append((LOG_FILE, "pKIS: журнал ошибок"))
+        documents.append((LOG_FILE, f"{APP_NAME}: журнал ошибок"))
     return documents
 
 def parse_version_parts(version):
@@ -2716,7 +2718,7 @@ def fetch_update_info():
         url,
         headers={
             "Accept": "application/json",
-            "User-Agent": f"pKIS/{APP_VERSION}",
+            "User-Agent": f"{APP_NAME}/{APP_VERSION}",
         },
     )
     with urllib.request.urlopen(request, timeout=UPDATE_CHECK_TIMEOUT_SECONDS) as response:
@@ -2740,13 +2742,13 @@ def download_update_file(update_info):
 
     parsed_url = urllib.parse.urlparse(download_url)
     suffix = os.path.splitext(parsed_url.path)[1] or ".exe"
-    temp_file = tempfile.NamedTemporaryFile(prefix="pKIS_update_", suffix=suffix, delete=False)
+    temp_file = tempfile.NamedTemporaryFile(prefix=f"{APP_NAME}_update_", suffix=suffix, delete=False)
     temp_path = temp_file.name
     temp_file.close()
 
     request = urllib.request.Request(
         download_url,
-        headers={"User-Agent": f"pKIS/{APP_VERSION}"},
+        headers={"User-Agent": f"{APP_NAME}/{APP_VERSION}"},
     )
     try:
         with urllib.request.urlopen(request, timeout=UPDATE_DOWNLOAD_TIMEOUT_SECONDS) as response:
@@ -2778,8 +2780,8 @@ def create_windows_updater(new_exe_path):
         raise RuntimeError("Автообновление сейчас поддерживает только Windows exe")
 
     current_exe = sys.executable
-    updater_path = os.path.join(tempfile.gettempdir(), f"pKIS_updater_{os.getpid()}.bat")
-    log_path = os.path.join(APP_DIR, "pKIS_update.log")
+    updater_path = os.path.join(tempfile.gettempdir(), f"{APP_NAME}_updater_{os.getpid()}.bat")
+    log_path = os.path.join(APP_DIR, f"{APP_NAME}_update.log")
     script = f"""@echo off
 chcp 65001 >nul
 set "APP={current_exe}"
@@ -2808,10 +2810,47 @@ def prepare_update_installer(update_info):
     new_exe_path = download_update_file(update_info)
     return create_windows_updater(new_exe_path)
 
+def maybe_rename_windows_executable():
+    if not getattr(sys, "frozen", False) or os.name != "nt":
+        return False
+
+    current_exe = os.path.abspath(sys.executable)
+    target_exe = os.path.join(os.path.dirname(current_exe), APP_EXECUTABLE_NAME)
+    if os.path.basename(current_exe).lower() == APP_EXECUTABLE_NAME.lower():
+        return False
+
+    updater_path = os.path.join(tempfile.gettempdir(), f"{APP_NAME}_rename_{os.getpid()}.bat")
+    log_path = os.path.join(APP_DIR, f"{APP_NAME}_update.log")
+    script = f"""@echo off
+chcp 65001 >nul
+set "OLD={current_exe}"
+set "NEW={target_exe}"
+set "LOG={log_path}"
+timeout /t 1 /nobreak >nul
+copy /Y "%OLD%" "%NEW%" >nul 2>nul
+if errorlevel 1 (
+  echo [%date% %time%] Не удалось создать "%NEW%" >> "%LOG%"
+  start "" "%OLD%"
+  del "%~f0" >nul 2>nul
+  exit /b 1
+)
+start "" "%NEW%"
+timeout /t 3 /nobreak >nul
+del "%OLD%" >nul 2>nul
+del "%~f0" >nul 2>nul
+exit /b 0
+"""
+    with open(updater_path, "w", encoding="utf-8") as updater_file:
+        updater_file.write(script)
+
+    creationflags = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
+    subprocess.Popen(["cmd", "/c", updater_path], creationflags=creationflags)
+    return True
+
 class ScanningApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("📦 Система учёта сканирования блоков")
+        self.title(f"📦 {APP_NAME} — система учёта склада")
         self.configure(bg=BG_MAIN)
         self.geometry("1250x780")
 
@@ -3031,7 +3070,7 @@ class ScanningApp(tk.Tk):
             logging.warning("%s", detail_text)
             if telegram_is_configured():
                 ok, result = send_telegram_message(
-                    "pKIS: найден дублирующийся КИЗ\n\n" + detail_text,
+                    f"{APP_NAME}: найден дублирующийся КИЗ\n\n" + detail_text,
                     reply_markup=telegram_reports_keyboard(),
                 )
                 if not ok:
@@ -3061,7 +3100,7 @@ class ScanningApp(tk.Tk):
             return
 
         caption = (
-            "pKIS: сканы за сегодня на текущий момент\n"
+            f"{APP_NAME}: сканы за сегодня на текущий момент\n"
             f"Всего КИЗов: {result['total_report_rows']}\n"
             f"Терминал: {result['terminal_count']}; "
             f"Перечисление: {result['transfer_count']}; "
@@ -3074,7 +3113,7 @@ class ScanningApp(tk.Tk):
         send_telegram_document_to_chat(
             log_path,
             chat_id,
-            "pKIS: сегодняшний лог по времени и ошибкам",
+            f"{APP_NAME}: сегодняшний лог по времени и ошибкам",
             token,
         )
 
@@ -3090,7 +3129,7 @@ class ScanningApp(tk.Tk):
             )
             return
 
-        lines = ["pKIS: документы по импорту"]
+        lines = [f"{APP_NAME}: документы по импорту"]
         for idx, document in enumerate(documents, start=1):
             lines.append(
                 f"{idx}. {document['source_file']} - "
@@ -3117,7 +3156,7 @@ class ScanningApp(tk.Tk):
             return
 
         caption = (
-            f"pKIS: документ {result['source_file']}\n"
+            f"{APP_NAME}: документ {result['source_file']}\n"
             f"КИЗ: {result['scanned_blocks']}/{result['plan_blocks']}\n"
             f"Позиций: {result['completed_positions']}/{result['positions']}\n"
             f"Осталось КИЗ: {result['remaining_blocks']}"
@@ -3129,7 +3168,7 @@ class ScanningApp(tk.Tk):
     def send_telegram_menu_to_chat(self, chat_id, token):
         send_telegram_message_to_chat(
             chat_id,
-            "pKIS: выберите файл, который нужно получить, или отправьте Excel-файл для импорта.",
+            f"{APP_NAME}: выберите файл, который нужно получить, или отправьте Excel-файл для импорта.",
             token,
             reply_markup=telegram_reports_keyboard(),
         )
@@ -3178,14 +3217,14 @@ class ScanningApp(tk.Tk):
 
         if self.update_required:
             safe_send(
-                "Файл не импортирован: сначала нужно обновить pKIS на компьютере склада.",
+                f"Файл не импортирован: сначала нужно обновить {APP_NAME} на компьютере склада.",
                 reply_markup=telegram_reports_keyboard(),
             )
             return
 
         if self.operation_in_progress:
             safe_send(
-                "Файл не импортирован: pKIS сейчас занят другой операцией. "
+                f"Файл не импортирован: {APP_NAME} сейчас занят другой операцией. "
                 "Отправьте Excel-файл повторно после завершения операции.",
                 reply_markup=telegram_reports_keyboard(),
             )
@@ -3278,11 +3317,11 @@ class ScanningApp(tk.Tk):
                 loaded = fetch_sheet_data_with_sync()
             except Exception:
                 logging.exception("Telegram: Excel импортирован, но список заказов не обновился")
-                refresh_note = "Список в окне pKIS не обновился автоматически. Нажмите «Обновить»."
+                refresh_note = f"Список в окне {APP_NAME} не обновился автоматически. Нажмите «Обновить»."
 
             imported_blocks = sum(parse_int_value(record.get("Кол-во блок")) for record in new_records)
             lines = [
-                "pKIS: Excel импортирован из Telegram",
+                f"{APP_NAME}: Excel импортирован из Telegram",
                 "",
                 f"Документ: {file_name}",
                 f"Позиций загружено: {imported_count}",
@@ -3307,12 +3346,12 @@ class ScanningApp(tk.Tk):
                 "Не удалось импортировать Excel-файл.\n\n"
                 f"Файл: {file_name}\n"
                 f"Причина: {exc}\n\n"
-                "Подробности записаны в лог pKIS.",
+                f"Подробности записаны в лог {APP_NAME}.",
                 reply_markup=telegram_reports_keyboard(),
             )
             try:
                 log_path = create_today_log_file()
-                send_telegram_document_to_chat(log_path, chat_id, "pKIS: лог ошибки импорта Excel", token)
+                send_telegram_document_to_chat(log_path, chat_id, f"{APP_NAME}: лог ошибки импорта Excel", token)
             except Exception:
                 logging.exception("Telegram: не удалось отправить лог ошибки импорта")
             schedule_finish(f"Ошибка импорта Excel из Telegram: {file_name}")
@@ -3522,7 +3561,7 @@ class ScanningApp(tk.Tk):
 
         self.show_error(message, popup=False)
         messagebox.showerror("Ошибка", detail)
-        self.send_telegram_alert_async("pKIS: ошибка приложения\n\n" + detail[:3800])
+        self.send_telegram_alert_async(f"{APP_NAME}: ошибка приложения\n\n" + detail[:3800])
         self.send_telegram_documents_async(collect_operational_documents(include_error_log=True))
 
     def report_callback_exception(self, exc_type, exc_value, exc_traceback):
@@ -3537,7 +3576,7 @@ class ScanningApp(tk.Tk):
                 "Ошибка",
                 detail
             )
-            self.send_telegram_alert_async("pKIS: ошибка интерфейса\n\n" + detail[:3800])
+            self.send_telegram_alert_async(f"{APP_NAME}: ошибка интерфейса\n\n" + detail[:3800])
             self.send_telegram_documents_async(collect_operational_documents(include_error_log=True))
         except Exception:
             pass
@@ -4027,7 +4066,7 @@ class ScanningApp(tk.Tk):
             imported_blocks = sum(parse_int_value(record.get("Кол-во блок")) for record in records)
             if imported_sources:
                 self.send_telegram_alert_async(
-                    "pKIS: импортирован документ\n\n"
+                    f"{APP_NAME}: импортирован документ\n\n"
                     f"Документы: {', '.join(imported_sources[:5])}\n"
                     f"Позиций загружено: {import_result.get('imported', 0)}\n"
                     f"План КИЗ: {imported_blocks}\n\n"
@@ -4862,6 +4901,9 @@ class ScanningApp(tk.Tk):
         self.destroy()
 
 if __name__ == "__main__":
+    if maybe_rename_windows_executable():
+        sys.exit(0)
+
     if not os.path.exists(CREDENTIALS_FILE):
         messagebox.showerror("Ошибка",
             f"Файл {CREDENTIALS_FILE} не найден!\n\n"
