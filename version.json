@@ -1,8 +1,8 @@
 {
-  "latest_version": "1.1.2",
-  "min_supported_version": "1.1.2",
+  "latest_version": "1.1.3",
+  "min_supported_version": "1.1.3",
   "mandatory": true,
-  "download_url": "https://github.com/1fear/pKIS/releases/download/v1.1.2/pKIS.exe",
-  "sha256": "010d36a367d938dc1bf56c6c92293de38d31ecd2a9c67b61118b08a0d063ab67",
-  "message": "Добавлен Telegram-пульт с отчётами и документами по импорту. Убран спам служебными файлами."
+  "download_url": "https://github.com/1fear/pKIS/releases/download/v1.1.3/TakSklad.exe",
+  "sha256": "6d44cf83127e0f3a5d0617a8ab377537d58654f14c411fabf0d13e2a8b08d0e1",
+  "message": "Приложение переименовано в TakSklad, добавлена кастомная иконка Windows."
 }
