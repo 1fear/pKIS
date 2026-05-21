@@ -1,8 +1,8 @@
 {
-  "latest_version": "1.1.1",
-  "min_supported_version": "1.1.1",
+  "latest_version": "1.1.2",
+  "min_supported_version": "1.1.2",
   "mandatory": true,
-  "download_url": "https://github.com/1fear/pKIS/releases/latest/download/pKIS.exe",
-  "sha256": "",
-  "message": "Печать сводного листа теперь отправляется напрямую на принтер без открытия браузера."
+  "download_url": "https://github.com/1fear/pKIS/releases/download/v1.1.2/pKIS.exe",
+  "sha256": "010d36a367d938dc1bf56c6c92293de38d31ecd2a9c67b61118b08a0d063ab67",
+  "message": "Добавлен Telegram-пульт с отчётами и документами по импорту. Убран спам служебными файлами."
 }
