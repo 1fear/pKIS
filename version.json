@@ -1,8 +1,8 @@
 {
-  "latest_version": "1.1.4",
-  "min_supported_version": "1.1.4",
+  "latest_version": "1.1.5",
+  "min_supported_version": "1.1.5",
   "mandatory": true,
-  "download_url": "https://github.com/1fear/pKIS/releases/download/v1.1.4/TakSklad.exe",
-  "sha256": "f4e4790830f08d5232f2a0df5981ff952042301b0282ac37e09c64d109e4ca3e",
-  "message": "Все локальные JSON-настройки и очереди объединены в TakSklad_data.json."
+  "download_url": "https://github.com/1fear/pKIS/releases/download/v1.1.5/TakSklad.exe",
+  "sha256": "edc3726237c93ea1be3f379201007298a9e8ba24bc3ecdb55dc324786e0b3ef5",
+  "message": "Импорт Excel сначала записывает лист Данные и исправлен перезапуск автообновления."
 }
