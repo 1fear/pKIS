@@ -11,6 +11,7 @@ import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 from datetime import datetime, timedelta
 
 import certifi
@@ -1686,6 +1687,31 @@ def compare_versions(left, right):
         return 1
     return 0
 
+def get_runtime_package_type():
+    if not getattr(sys, "frozen", False):
+        return "source"
+    meipass = os.path.abspath(getattr(sys, "_MEIPASS", ""))
+    app_dir = os.path.abspath(APP_DIR)
+    if meipass:
+        try:
+            if os.path.commonpath([app_dir, meipass]) == app_dir:
+                return "onedir"
+        except ValueError:
+            pass
+    return "onefile"
+
+def manifest_targets_onedir(update_info):
+    package_type = normalize_text(update_info.get("package_type")).lower()
+    return package_type in ("onedir", "onedir_zip", "zip")
+
+def package_transition_required(update_info):
+    return (
+        getattr(sys, "frozen", False)
+        and manifest_targets_onedir(update_info)
+        and get_runtime_package_type() != "onedir"
+        and bool(normalize_text(update_info.get("download_url_onedir")))
+    )
+
 def fetch_update_info():
     if not UPDATE_INFO_URL:
         return None
@@ -1706,10 +1732,20 @@ def fetch_update_info():
         raise ValueError("Файл обновления должен быть JSON-объектом")
     return update_info
 
+def select_update_download(update_info):
+    if manifest_targets_onedir(update_info):
+        onedir_url = normalize_text(update_info.get("download_url_onedir"))
+        if onedir_url:
+            return onedir_url, normalize_text(update_info.get("sha256_onedir")).lower()
+    return (
+        normalize_text(update_info.get("download_url")),
+        normalize_text(update_info.get("sha256")).lower(),
+    )
+
 def download_update_file(update_info):
-    download_url = normalize_text(update_info.get("download_url"))
+    download_url, expected_sha256 = select_update_download(update_info)
     if not download_url:
-        raise ValueError("В version.json не указан download_url для нового exe")
+        raise ValueError("В version.json не указан download_url для обновления")
 
     parsed_url = urllib.parse.urlparse(download_url)
     suffix = os.path.splitext(parsed_url.path)[1] or ".exe"
@@ -1730,7 +1766,6 @@ def download_update_file(update_info):
                         break
                     file_obj.write(chunk)
 
-        expected_sha256 = normalize_text(update_info.get("sha256")).lower()
         if expected_sha256:
             actual_sha256 = file_sha256(temp_path)
             if actual_sha256.lower() != expected_sha256:
@@ -1744,7 +1779,111 @@ def download_update_file(update_info):
             pass
         raise
 
-def create_windows_updater(new_exe_path):
+def detect_update_package_type(update_info, downloaded_path):
+    package_type = normalize_text(update_info.get("package_type")).lower()
+    if package_type:
+        return package_type
+    if downloaded_path.lower().endswith(".zip"):
+        return "onedir_zip"
+    return "onefile_exe"
+
+def validate_onedir_zip(zip_path):
+    try:
+        with zipfile.ZipFile(zip_path) as zip_file:
+            names = [name.replace("\\", "/") for name in zip_file.namelist()]
+    except zipfile.BadZipFile as exc:
+        raise ValueError("Файл обновления повреждён или не является ZIP-архивом") from exc
+
+    candidates = (
+        APP_EXECUTABLE_NAME,
+        f"{APP_NAME}/{APP_EXECUTABLE_NAME}",
+        f"./{APP_EXECUTABLE_NAME}",
+        f"./{APP_NAME}/{APP_EXECUTABLE_NAME}",
+    )
+    normalized = {name.lstrip("/") for name in names}
+    if not any(candidate in normalized for candidate in candidates):
+        raise ValueError(f"ZIP-обновление не содержит {APP_EXECUTABLE_NAME}")
+
+def powershell_single_quoted(value):
+    return "'" + str(value).replace("'", "''") + "'"
+
+def get_windows_desktop_dir():
+    if os.name != "nt":
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        buffer = ctypes.create_unicode_buffer(wintypes.MAX_PATH)
+        result = ctypes.windll.shell32.SHGetFolderPathW(None, 0x10, None, 0, buffer)
+        if result == 0 and buffer.value:
+            return buffer.value
+    except Exception:
+        logging.debug("Не удалось получить путь Desktop через SHGetFolderPathW", exc_info=True)
+    return os.path.join(os.path.expanduser("~"), "Desktop")
+
+def write_windows_shortcut_script(target_exe=None, working_dir=None, shortcut_path=None, shortcut_path_expression=None):
+    target_exe = target_exe or sys.executable
+    working_dir = working_dir or os.path.dirname(target_exe)
+    if shortcut_path is None and shortcut_path_expression is None:
+        desktop_dir = get_windows_desktop_dir()
+        if not desktop_dir:
+            raise RuntimeError("Не удалось определить рабочий стол Windows")
+        shortcut_path = os.path.join(desktop_dir, f"{APP_NAME}.lnk")
+    shortcut_path_line = (
+        f"$shortcutPath = {shortcut_path_expression}"
+        if shortcut_path_expression
+        else f"$shortcutPath = {powershell_single_quoted(shortcut_path)}"
+    )
+
+    return f"""$ErrorActionPreference = 'Stop'
+{shortcut_path_line}
+$targetPath = {powershell_single_quoted(target_exe)}
+$workingDirectory = {powershell_single_quoted(working_dir)}
+$shell = New-Object -ComObject WScript.Shell
+$shortcut = $shell.CreateShortcut($shortcutPath)
+$shortcut.TargetPath = $targetPath
+$shortcut.WorkingDirectory = $workingDirectory
+$shortcut.IconLocation = "$targetPath,0"
+$shortcut.Description = '{APP_NAME}: складское приложение'
+$shortcut.Save()
+"""
+
+def ensure_windows_desktop_shortcut():
+    if not getattr(sys, "frozen", False) or os.name != "nt":
+        return False
+    try:
+        desktop_dir = get_windows_desktop_dir()
+        if not desktop_dir:
+            return False
+        os.makedirs(desktop_dir, exist_ok=True)
+        shortcut_path = os.path.join(desktop_dir, f"{APP_NAME}.lnk")
+        script = write_windows_shortcut_script(shortcut_path=shortcut_path)
+        script_path = os.path.join(tempfile.gettempdir(), f"{APP_NAME}_shortcut_{os.getpid()}.ps1")
+        with open(script_path, "w", encoding="utf-8-sig") as script_file:
+            script_file.write(script)
+        creationflags = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
+        completed = subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script_path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            creationflags=creationflags,
+            timeout=20,
+        )
+        try:
+            os.remove(script_path)
+        except OSError:
+            pass
+        if completed.returncode != 0:
+            logging.warning("Не удалось создать ярлык %s: %s", shortcut_path, completed.stderr.decode("utf-8", "replace"))
+            return False
+        logging.info("Ярлык приложения проверен: %s", shortcut_path)
+        return True
+    except Exception:
+        logging.exception("Не удалось создать ярлык приложения на рабочем столе")
+        return False
+
+def create_windows_exe_updater(new_exe_path):
     if not getattr(sys, "frozen", False):
         raise RuntimeError("Автообновление доступно только в собранной Windows-версии приложения")
     if os.name != "nt":
@@ -1778,9 +1917,92 @@ exit /b 1
         updater_file.write(script)
     return updater_path
 
+def create_windows_onedir_updater(update_zip_path, update_info):
+    if not getattr(sys, "frozen", False):
+        raise RuntimeError("Автообновление доступно только в собранной Windows-версии приложения")
+    if os.name != "nt":
+        raise RuntimeError("Автообновление сейчас поддерживает только Windows")
+
+    validate_onedir_zip(update_zip_path)
+
+    current_exe = os.path.abspath(sys.executable)
+    app_dir = os.path.abspath(APP_DIR)
+    updater_path = os.path.join(tempfile.gettempdir(), f"{APP_NAME}_updater_{os.getpid()}.ps1")
+    log_path = os.path.join(APP_DIR, f"{APP_NAME}_update.log")
+    extract_dir = os.path.join(tempfile.gettempdir(), f"{APP_NAME}_update_extract_{os.getpid()}")
+    process_id = os.getpid()
+    entrypoint = normalize_text(update_info.get("entrypoint")) or APP_EXECUTABLE_NAME
+
+    shortcut_script = write_windows_shortcut_script(
+        target_exe=os.path.join(app_dir, entrypoint),
+        working_dir=app_dir,
+        shortcut_path_expression=f"(Join-Path $Desktop '{APP_NAME}.lnk')",
+    )
+
+    script = f"""$ErrorActionPreference = 'Stop'
+$AppDir = {powershell_single_quoted(app_dir)}
+$ZipPath = {powershell_single_quoted(update_zip_path)}
+$ExtractDir = {powershell_single_quoted(extract_dir)}
+$LogPath = {powershell_single_quoted(log_path)}
+$EntryPoint = {powershell_single_quoted(entrypoint)}
+$ProcessIdToWait = {process_id}
+$Desktop = [Environment]::GetFolderPath('Desktop')
+
+function Write-UpdateLog([string]$Message) {{
+  $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+  Add-Content -Path $LogPath -Value "[$stamp] $Message" -Encoding UTF8
+}}
+
+try {{
+  Write-UpdateLog 'Старт onedir-обновления'
+  while (Get-Process -Id $ProcessIdToWait -ErrorAction SilentlyContinue) {{
+    Start-Sleep -Seconds 1
+  }}
+
+  if (Test-Path $ExtractDir) {{
+    Remove-Item -LiteralPath $ExtractDir -Recurse -Force
+  }}
+  New-Item -ItemType Directory -Path $ExtractDir -Force | Out-Null
+  Expand-Archive -LiteralPath $ZipPath -DestinationPath $ExtractDir -Force
+
+  $SourceDir = $ExtractDir
+  $NestedDir = Join-Path $ExtractDir '{APP_NAME}'
+  if (Test-Path (Join-Path $NestedDir $EntryPoint)) {{
+    $SourceDir = $NestedDir
+  }}
+  if (-not (Test-Path (Join-Path $SourceDir $EntryPoint))) {{
+    throw "В архиве обновления не найден $EntryPoint"
+  }}
+
+  robocopy $SourceDir $AppDir /E /R:3 /W:1 /NFL /NDL /NJH /NJS /NP /XF TakSklad_data.json credentials.json telegram_settings.json pending_saves.json pending_prints.json pending_telegram.json telegram_state.json product_catalog.json import_history.json print_settings.json *.log | Out-Null
+  if ($LASTEXITCODE -gt 7) {{
+    throw "robocopy failed with exit code $LASTEXITCODE"
+  }}
+
+{shortcut_script}
+
+  $NewExe = Join-Path $AppDir $EntryPoint
+  Write-UpdateLog "Обновление установлено: $NewExe"
+  Start-Process -FilePath $NewExe -WorkingDirectory $AppDir
+  Remove-Item -LiteralPath $ZipPath -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $ExtractDir -Recurse -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
+}} catch {{
+  Write-UpdateLog ("Ошибка onedir-обновления: " + $_.Exception.Message)
+  Start-Process -FilePath {powershell_single_quoted(current_exe)} -WorkingDirectory $AppDir
+  exit 1
+}}
+"""
+    with open(updater_path, "w", encoding="utf-8-sig") as updater_file:
+        updater_file.write(script)
+    return updater_path
+
 def prepare_update_installer(update_info):
-    new_exe_path = download_update_file(update_info)
-    return create_windows_updater(new_exe_path)
+    downloaded_path = download_update_file(update_info)
+    package_type = detect_update_package_type(update_info, downloaded_path)
+    if package_type in ("onedir", "onedir_zip", "zip"):
+        return create_windows_onedir_updater(downloaded_path, update_info)
+    return create_windows_exe_updater(downloaded_path)
 
 def maybe_rename_windows_executable():
     if not getattr(sys, "frozen", False) or os.name != "nt":
@@ -1984,7 +2206,13 @@ class ScanningApp(tk.Tk):
         self.status_var.set("⏳ Устанавливаю обновление...")
         self.status_label.config(bg=BG_MAIN, fg=FG_MUTED)
         creationflags = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
-        subprocess.Popen(["cmd", "/c", updater_path], creationflags=creationflags)
+        if updater_path.lower().endswith(".ps1"):
+            subprocess.Popen(
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", updater_path],
+                creationflags=creationflags,
+            )
+        else:
+            subprocess.Popen(["cmd", "/c", updater_path], creationflags=creationflags)
         self.destroy()
 
     def send_telegram_documents_async(self, documents):
@@ -2480,16 +2708,22 @@ class ScanningApp(tk.Tk):
         message = normalize_text(update_info.get("message"))
         update_available = bool(latest_version) and compare_versions(APP_VERSION, latest_version) < 0
         below_min_version = bool(min_supported_version) and compare_versions(APP_VERSION, min_supported_version) < 0
+        package_update_required = package_transition_required(update_info)
 
-        if not update_available and not below_min_version:
+        if not update_available and not below_min_version and not package_update_required:
             return
 
         self.update_info = update_info
         self.update_required = True
         self.apply_required_update_lock()
 
+        if package_update_required and not update_available and not below_min_version:
+            reason = "Приложение переводится на новую папочную установку."
+        else:
+            reason = "Вышла новая версия приложения."
+
         lines = [
-            "Вышла новая версия приложения.",
+            reason,
             "Программа скачает обновление, перезапустится и продолжит работу уже в новой версии.",
             "",
             f"Текущая версия: {APP_VERSION}",
@@ -3882,6 +4116,7 @@ if __name__ == "__main__":
     if maybe_rename_windows_executable():
         sys.exit(0)
 
+    ensure_windows_desktop_shortcut()
     migrate_legacy_json_files_to_app_data()
 
     if not credentials_available():
