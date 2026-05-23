@@ -1,8 +1,12 @@
 {
-  "latest_version": "1.1.6",
-  "min_supported_version": "1.1.6",
+  "latest_version": "1.1.7",
+  "min_supported_version": "1.1.7",
   "mandatory": true,
-  "download_url": "https://github.com/1fear/pKIS/releases/download/v1.1.6/TakSklad.exe",
-  "sha256": "3e88b263dc2cea87388f6d7e1a70fb5339300090ba97282a51a28764d311d99d",
-  "message": "Исправлена SSL-проверка автообновления. Импорт Excel сохраняет порядок строк и пропускает только полные дубли."
+  "package_type": "onedir_zip",
+  "entrypoint": "TakSklad.exe",
+  "download_url": "https://github.com/1fear/pKIS/releases/download/v1.1.7/TakSklad.exe",
+  "sha256": "30b50e8e4e292d5e8ef64feb13b77901fbc6c0a166dcc8d0881433360107c9c9",
+  "download_url_onedir": "https://github.com/1fear/pKIS/releases/download/v1.1.7/TakSklad-windows-x64.zip",
+  "sha256_onedir": "4bbe4daec0b8002210a1bee4355a9177de4bb0c7bc87ded6012af8b9ee0c80fb",
+  "message": "Переход на папочную сборку TakSklad: приложение будет обновляться через ZIP-пакет, сохранять локальные данные и создавать ярлык на рабочем столе."
 }
