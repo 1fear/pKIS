@@ -1,12 +1,12 @@
 {
-  "latest_version": "1.1.13",
-  "min_supported_version": "1.1.13",
+  "latest_version": "1.1.14",
+  "min_supported_version": "1.1.14",
   "mandatory": true,
   "package_type": "onedir_zip",
   "entrypoint": "TakSklad.exe",
-  "download_url": "https://github.com/1fear/pKIS/releases/download/v1.1.13/TakSklad.exe",
-  "sha256": "b9f52bf19fe2c6c1f78832dff51aa6641560b2dcf73e4a21288b30c863386f67",
-  "download_url_onedir": "https://github.com/1fear/pKIS/releases/download/v1.1.13/TakSklad-windows-x64.zip",
-  "sha256_onedir": "779e8a35ee426093c89005c2b2ff788a41d7836b0a6c19a704450a7ede02c67f",
-  "message": "TakSklad 1.1.13: добавлен таймаут Google API, чтобы зависший сетевой запрос не блокировал интерфейс бесконечно."
+  "download_url": "https://github.com/1fear/pKIS/releases/download/v1.1.14/TakSklad.exe",
+  "sha256": "dd828f5e1f7a1a10e9e895e45da522916e2106282eca78abc29f57c55d3d3d1e",
+  "download_url_onedir": "https://github.com/1fear/pKIS/releases/download/v1.1.14/TakSklad-windows-x64.zip",
+  "sha256_onedir": "fde9003ea1747dcec1f781be7e8e06977785c4f7e0e96183bd66a03263bda2fa",
+  "message": "TakSklad 1.1.14: заказы без найденного номера SkladBot больше не скрываются из списка КИЗов, если они активные и не выполнены."
 }
