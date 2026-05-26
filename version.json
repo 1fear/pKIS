@@ -1,12 +1,12 @@
 {
-  "latest_version": "1.1.14",
-  "min_supported_version": "1.1.14",
+  "latest_version": "1.1.15",
+  "min_supported_version": "1.1.15",
   "mandatory": true,
   "package_type": "onedir_zip",
   "entrypoint": "TakSklad.exe",
-  "download_url": "https://github.com/1fear/pKIS/releases/download/v1.1.14/TakSklad.exe",
-  "sha256": "dd828f5e1f7a1a10e9e895e45da522916e2106282eca78abc29f57c55d3d3d1e",
-  "download_url_onedir": "https://github.com/1fear/pKIS/releases/download/v1.1.14/TakSklad-windows-x64.zip",
-  "sha256_onedir": "fde9003ea1747dcec1f781be7e8e06977785c4f7e0e96183bd66a03263bda2fa",
-  "message": "TakSklad 1.1.14: заказы без найденного номера SkladBot больше не скрываются из списка КИЗов, если они активные и не выполнены."
+  "download_url": "https://github.com/1fear/pKIS/releases/download/v1.1.15/TakSklad.exe",
+  "sha256": "851916c7c1bea9ae327146862b2c1162bad4871f072720dd1c1ae6e60a683eb2",
+  "download_url_onedir": "https://github.com/1fear/pKIS/releases/download/v1.1.15/TakSklad-windows-x64.zip",
+  "sha256_onedir": "bb152dd3a503862145d672bf476b225cc20bb59ec2458f46f7abdae5529a1a2a",
+  "message": "TakSklad 1.1.15: обновление списка больше не ждёт SkladBot, а номера заявок сопоставляются строже по дате выгрузки и клиенту."
 }
