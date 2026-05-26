@@ -2,10 +2,12 @@ import logging
 import os
 
 import gspread
+from gspread.http_client import HTTPClient
 from oauth2client.service_account import ServiceAccountCredentials
 
 from config import (
     CREDENTIALS_FILE,
+    GOOGLE_API_TIMEOUT_SECONDS,
     LEGACY_ORDER_DATE_COLUMN,
     ORDER_DATE_COLUMN,
     REQUIRED_COLUMNS,
@@ -41,6 +43,12 @@ from utils import (
 )
 
 
+class GoogleTimeoutHTTPClient(HTTPClient):
+    def __init__(self, auth, session=None):
+        super().__init__(auth, session=session)
+        self.timeout = GOOGLE_API_TIMEOUT_SECONDS
+
+
 def get_google_client():
     scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     credentials = load_credentials_data()
@@ -48,7 +56,7 @@ def get_google_client():
         creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials, scope)
     else:
         creds = ServiceAccountCredentials.from_json_keyfile_name(CREDENTIALS_FILE, scope)
-    return gspread.authorize(creds)
+    return gspread.authorize(creds, http_client=GoogleTimeoutHTTPClient)
 
 
 def skladbot_visibility_filter_enabled():
