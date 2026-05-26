@@ -59,6 +59,28 @@ def get_google_client():
     return gspread.authorize(creds, http_client=GoogleTimeoutHTTPClient)
 
 
+def format_google_sheets_error(exc):
+    message = normalize_text(exc)
+    lower_message = message.lower()
+    if (
+        isinstance(exc, PermissionError)
+        or "does not have permission" in lower_message
+        or "apierror: [403]" in lower_message
+        or "http error 403" in lower_message
+    ):
+        return (
+            "Нет доступа к Google-таблице. Проверьте, что таблица открыта для "
+            "service account из TakSklad_data.json или credentials.json рядом с приложением."
+        )
+    if "invalid jwt signature" in lower_message or "invalid_grant" in lower_message:
+        return (
+            "Google-ключ повреждён или устарел: Invalid JWT Signature. "
+            "Запустите новую папку TakSklad с рабочим TakSklad_data.json или положите "
+            "актуальный credentials.json рядом с приложением."
+        )
+    return message
+
+
 def skladbot_visibility_filter_enabled():
     settings = load_data_section("skladbot_settings", {})
     if not isinstance(settings, dict):
@@ -356,8 +378,11 @@ def get_today_orders(apply_skladbot_filter=None):
             sheet.batch_update(status_updates, value_input_option="USER_ENTERED")
 
         return today_orders, sheet
-    except Exception:
+    except Exception as exc:
         logging.exception("Не удалось загрузить данные из Google Sheets")
+        friendly_message = format_google_sheets_error(exc)
+        if friendly_message and friendly_message != str(exc):
+            raise RuntimeError(friendly_message) from exc
         raise
 
 
@@ -431,4 +456,4 @@ def update_scanned_codes_to_gsheet(sheet, order, scanned_codes):
         return True, "Коды записаны в Google Sheets"
     except Exception as exc:
         logging.exception("Не удалось записать коды в Google Sheets")
-        return False, str(exc)
+        return False, format_google_sheets_error(exc) or str(exc)

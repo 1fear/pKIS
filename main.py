@@ -7,6 +7,7 @@ import logging
 import subprocess
 import hashlib
 import threading
+import time
 import ssl
 import urllib.error
 import urllib.parse
@@ -2333,6 +2334,8 @@ class ScanningApp(tk.Tk):
         self.visible_order_groups = []
         self.current_group_key = None
         self.operation_in_progress = False
+        self.operation_started_at = None
+        self.operation_message = ""
         self.update_required = False
         self.update_info = None
         self.telegram_poll_running = False
@@ -2423,11 +2426,40 @@ class ScanningApp(tk.Tk):
 
     def set_busy(self, message):
         self.operation_in_progress = True
+        self.operation_started_at = time.monotonic()
+        self.operation_message = normalize_text(message)
+        logging.info("Операция начата: %s", self.operation_message)
         self.status_var.set(message)
-        self.status_label.config(bg=BG_MAIN, fg=FG_MUTED)
+        self.safe_config(self.status_label, bg=BG_MAIN, fg=FG_MUTED)
 
     def clear_busy(self):
+        if self.operation_in_progress:
+            elapsed = None
+            if self.operation_started_at is not None:
+                elapsed = time.monotonic() - self.operation_started_at
+            if elapsed is None:
+                logging.info("Операция завершена: %s", self.operation_message)
+            else:
+                logging.info("Операция завершена: %s (%.1f сек.)", self.operation_message, elapsed)
         self.operation_in_progress = False
+        self.operation_started_at = None
+        self.operation_message = ""
+
+    def safe_config(self, widget, **kwargs):
+        try:
+            if widget is not None and widget.winfo_exists():
+                widget.config(**kwargs)
+        except tk.TclError:
+            logging.debug("UI: виджет уже недоступен при изменении состояния", exc_info=True)
+
+    def show_busy_error(self):
+        message = "Дождитесь завершения текущей операции"
+        if self.operation_message:
+            message += f": {self.operation_message}"
+            if self.operation_started_at is not None:
+                elapsed = int(time.monotonic() - self.operation_started_at)
+                message += f" ({elapsed} сек.)"
+        self.show_error(message)
 
     def ensure_update_allowed(self):
         if not self.update_required:
@@ -2437,7 +2469,7 @@ class ScanningApp(tk.Tk):
 
     def apply_required_update_lock(self):
         self.status_var.set("⛔ Требуется обновление приложения")
-        self.status_label.config(bg=ERROR_BG, fg=ERROR_FG)
+        self.safe_config(self.status_label, bg=ERROR_BG, fg=ERROR_FG)
         for button_name in (
             "refresh_btn",
             "import_btn",
@@ -2451,7 +2483,7 @@ class ScanningApp(tk.Tk):
         ):
             button = getattr(self, button_name, None)
             if button:
-                button.config(state="disabled")
+                self.safe_config(button, state="disabled")
 
     def start_auto_update(self, update_info):
         self.status_var.set("⏳ Скачиваю обновление...")
@@ -2726,9 +2758,9 @@ class ScanningApp(tk.Tk):
 
     def start_telegram_import_ui(self, file_name):
         self.status_var.set(f"⏳ Импортирую Excel из Telegram: {file_name}")
-        self.status_label.config(bg=BG_MAIN, fg=FG_MUTED)
-        self.import_btn.config(state="disabled")
-        self.refresh_btn.config(state="disabled")
+        self.safe_config(self.status_label, bg=BG_MAIN, fg=FG_MUTED)
+        self.safe_config(self.import_btn, state="disabled")
+        self.safe_config(self.refresh_btn, state="disabled")
 
     def finish_telegram_import_ui(self, status_message, loaded=None):
         try:
@@ -2738,15 +2770,15 @@ class ScanningApp(tk.Tk):
                 self.reset_current_selection()
                 self.refresh_legal_list()
             self.status_var.set(status_message)
-            self.status_label.config(bg=BG_MAIN, fg=FG_MUTED)
+            self.safe_config(self.status_label, bg=BG_MAIN, fg=FG_MUTED)
         except Exception:
             logging.exception("Telegram: не удалось обновить интерфейс после импорта")
             self.status_var.set("Excel импортирован из Telegram, обновите список вручную")
         finally:
-            self.operation_in_progress = False
+            self.clear_busy()
             if not self.update_required:
-                self.import_btn.config(state="normal")
-                self.refresh_btn.config(state="normal")
+                self.safe_config(self.import_btn, state="normal")
+                self.safe_config(self.refresh_btn, state="normal")
 
     def handle_telegram_document_message(self, document, chat_id, token):
         chat_id = normalize_text(chat_id)
@@ -2782,6 +2814,8 @@ class ScanningApp(tk.Tk):
             return
 
         self.operation_in_progress = True
+        self.operation_started_at = time.monotonic()
+        self.operation_message = f"Импорт Excel из Telegram: {file_name}"
         temp_path = None
         finish_scheduled = False
 
@@ -2794,6 +2828,8 @@ class ScanningApp(tk.Tk):
                 self.after(0, lambda: self.finish_telegram_import_ui(status_message, loaded=loaded))
             except tk.TclError:
                 self.operation_in_progress = False
+                self.operation_started_at = None
+                self.operation_message = ""
 
         try:
             try:
@@ -3087,7 +3123,7 @@ class ScanningApp(tk.Tk):
     def show_error(self, message, popup=True):
         logging.warning("Ошибка для пользователя: %s", message)
         self.status_var.set(f"❌ {message}")
-        self.status_label.config(bg=ERROR_BG, fg=ERROR_FG)
+        self.safe_config(self.status_label, bg=ERROR_BG, fg=ERROR_FG)
         if self.error_timer:
             self.after_cancel(self.error_timer)
         self.error_timer = self.after(3000, self.clear_error)
@@ -3135,11 +3171,11 @@ class ScanningApp(tk.Tk):
     def clear_error(self):
         if self.update_required:
             self.status_var.set("⛔ Требуется обновление приложения")
-            self.status_label.config(bg=ERROR_BG, fg=ERROR_FG)
+            self.safe_config(self.status_label, bg=ERROR_BG, fg=ERROR_FG)
             self.error_timer = None
             return
         self.status_var.set("✅ Готов к работе")
-        self.status_label.config(bg=BG_MAIN, fg=FG_MUTED)
+        self.safe_config(self.status_label, bg=BG_MAIN, fg=FG_MUTED)
         self.error_timer = None
 
     def validate_code(self, code):
@@ -3164,7 +3200,7 @@ class ScanningApp(tk.Tk):
             return
 
         if self.operation_in_progress:
-            self.show_error("Дождитесь завершения текущей операции")
+            self.show_busy_error()
             return
 
         if not self.current_order:
@@ -3519,7 +3555,7 @@ class ScanningApp(tk.Tk):
             return
 
         if self.operation_in_progress:
-            self.show_error("Дождитесь завершения текущей операции")
+            self.show_busy_error()
             return
 
         if self.current_order and not initial:
@@ -3530,8 +3566,8 @@ class ScanningApp(tk.Tk):
                 return
 
         self.set_busy("⏳ Обновляю список заказов...")
-        self.refresh_btn.config(state="disabled")
-        self.import_btn.config(state="disabled")
+        self.safe_config(self.refresh_btn, state="disabled")
+        self.safe_config(self.import_btn, state="disabled")
 
         def on_success(result):
             self.apply_loaded_data(result, show_empty_warning=initial)
@@ -3561,9 +3597,9 @@ class ScanningApp(tk.Tk):
             self.show_critical_error("Не удалось обновить список заказов", exc)
 
         def on_finally():
-            self.refresh_btn.config(state="normal")
-            self.import_btn.config(state="normal")
             self.clear_busy()
+            self.safe_config(self.refresh_btn, state="normal")
+            self.safe_config(self.import_btn, state="normal")
             try:
                 self.after(100, self.sync_skladbot_async)
             except tk.TclError:
@@ -3582,7 +3618,7 @@ class ScanningApp(tk.Tk):
             return
 
         if self.operation_in_progress:
-            self.show_error("Дождитесь завершения текущей операции")
+            self.show_busy_error()
             return
 
         file_paths = filedialog.askopenfilenames(
@@ -3596,16 +3632,16 @@ class ScanningApp(tk.Tk):
             return
 
         self.set_busy("⏳ Проверяю Excel-файлы перед импортом...")
-        self.import_btn.config(state="disabled")
-        self.refresh_btn.config(state="disabled")
+        self.safe_config(self.import_btn, state="disabled")
+        self.safe_config(self.refresh_btn, state="disabled")
 
         def work():
             return prepare_excel_import(list(file_paths))
 
         def on_success(preview):
             self.clear_busy()
-            self.import_btn.config(state="normal")
-            self.refresh_btn.config(state="normal")
+            self.safe_config(self.import_btn, state="normal")
+            self.safe_config(self.refresh_btn, state="normal")
 
             errors = preview.get("errors", [])
             warnings = preview.get("warnings", [])
@@ -3660,9 +3696,9 @@ class ScanningApp(tk.Tk):
             self.show_critical_error("Не удалось проверить Excel-файлы", exc)
 
         def on_finally():
-            self.import_btn.config(state="normal")
-            self.refresh_btn.config(state="normal")
             self.clear_busy()
+            self.safe_config(self.import_btn, state="normal")
+            self.safe_config(self.refresh_btn, state="normal")
 
         self.run_background(
             "Не удалось проверить Excel-файлы",
@@ -3674,8 +3710,8 @@ class ScanningApp(tk.Tk):
 
     def commit_excel_import(self, records):
         self.set_busy("⏳ Загружаю заказы в Google Sheets...")
-        self.import_btn.config(state="disabled")
-        self.refresh_btn.config(state="disabled")
+        self.safe_config(self.import_btn, state="disabled")
+        self.safe_config(self.refresh_btn, state="disabled")
 
         def work():
             result = append_import_records(records)
@@ -3711,9 +3747,9 @@ class ScanningApp(tk.Tk):
             self.show_critical_error("Не удалось загрузить Excel-заказы", exc)
 
         def on_finally():
-            self.import_btn.config(state="normal")
-            self.refresh_btn.config(state="normal")
             self.clear_busy()
+            self.safe_config(self.import_btn, state="normal")
+            self.safe_config(self.refresh_btn, state="normal")
 
         self.run_background(
             "Не удалось загрузить Excel-заказы",
@@ -3864,11 +3900,11 @@ class ScanningApp(tk.Tk):
             return
 
         if self.operation_in_progress:
-            self.show_error("Дождитесь завершения текущей операции")
+            self.show_busy_error()
             return
 
         self.set_busy("⏳ Собираю контрольную панель...")
-        self.control_btn.config(state="disabled")
+        self.safe_config(self.control_btn, state="disabled")
 
         def work():
             sheet = self.sheet
@@ -3926,8 +3962,8 @@ class ScanningApp(tk.Tk):
             self.show_critical_error("Не удалось собрать панель контроля", exc)
 
         def on_finally():
-            self.control_btn.config(state="normal")
             self.clear_busy()
+            self.safe_config(self.control_btn, state="normal")
 
         self.run_background(
             "Не удалось собрать панель контроля",
@@ -3942,7 +3978,7 @@ class ScanningApp(tk.Tk):
             return
 
         if self.operation_in_progress:
-            self.show_error("Дождитесь завершения текущей операции")
+            self.show_busy_error()
             return
 
         if not self.today_orders:
@@ -4023,7 +4059,7 @@ class ScanningApp(tk.Tk):
             return
 
         if self.operation_in_progress:
-            self.show_error("Дождитесь завершения текущей операции")
+            self.show_busy_error()
             self.scan_entry.delete(0, tk.END)
             return
 
@@ -4096,7 +4132,7 @@ class ScanningApp(tk.Tk):
             return
 
         if self.operation_in_progress:
-            self.show_error("Дождитесь завершения текущей операции")
+            self.show_busy_error()
             return
 
         if not self.current_order:
@@ -4114,8 +4150,8 @@ class ScanningApp(tk.Tk):
         scanned_codes = self.scanned_codes.copy()
         pieces_per_block = get_product_rule(order.get("Товары", ""), self.product_catalog)["pieces_per_block"]
         self.set_busy("⏳ Сохраняю КИЗы в Google Sheets...")
-        self.next_product_btn.config(state="disabled")
-        self.finish_btn.config(state="disabled")
+        self.safe_config(self.next_product_btn, state="disabled")
+        self.safe_config(self.finish_btn, state="disabled")
 
         def work():
             ok = False
@@ -4172,8 +4208,8 @@ class ScanningApp(tk.Tk):
 
         def on_error(exc):
             self.show_critical_error("КИЗы не записаны", exc)
-            self.next_product_btn.config(state="normal")
             self.clear_busy()
+            self.safe_config(self.next_product_btn, state="normal")
 
         self.run_background(
             "Не удалось сохранить позицию",
@@ -4187,7 +4223,7 @@ class ScanningApp(tk.Tk):
             return
 
         if self.operation_in_progress:
-            self.show_error("Дождитесь завершения текущей операции")
+            self.show_busy_error()
             return
 
         if not self.current_legal_entity:
@@ -4209,8 +4245,8 @@ class ScanningApp(tk.Tk):
         group_key = self.current_group_key
         current_products = [product.copy() for product in self.current_legal_entity_products]
         self.set_busy("⏳ Готовлю и печатаю сводный лист...")
-        self.finish_btn.config(state="disabled")
-        self.next_product_btn.config(state="disabled")
+        self.safe_config(self.finish_btn, state="disabled")
+        self.safe_config(self.next_product_btn, state="disabled")
 
         def work():
             first_product = current_products[0]
@@ -4264,7 +4300,7 @@ class ScanningApp(tk.Tk):
 
         def on_error(exc):
             self.show_critical_error("Не удалось завершить заказ", exc)
-            self.finish_btn.config(state="normal")
+            self.safe_config(self.finish_btn, state="normal")
 
         def on_finally():
             self.clear_busy()
@@ -4459,7 +4495,7 @@ class ScanningApp(tk.Tk):
             return
 
         if self.operation_in_progress:
-            self.show_error("Дождитесь завершения текущей операции")
+            self.show_busy_error()
             return
 
         if self.current_legal_entity:
@@ -4467,7 +4503,7 @@ class ScanningApp(tk.Tk):
                 return
 
         self.set_busy("⏳ Формирую и отправляю Excel-отчёт за день...")
-        self.report_btn.config(state="disabled")
+        self.safe_config(self.report_btn, state="disabled")
 
         def work():
             sheet = self.sheet
@@ -4522,10 +4558,10 @@ class ScanningApp(tk.Tk):
                 self.show_critical_error("Не удалось сохранить Excel-отчёт", exc)
 
         def on_finally():
+            self.clear_busy()
             try:
                 if self.winfo_exists():
-                    self.report_btn.config(state="normal")
-                    self.clear_busy()
+                    self.safe_config(self.report_btn, state="normal")
             except tk.TclError:
                 pass
 

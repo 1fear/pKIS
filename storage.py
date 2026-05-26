@@ -2,6 +2,8 @@ import copy
 import json
 import logging
 import os
+import tempfile
+import time
 from datetime import datetime
 
 from config import (
@@ -54,6 +56,9 @@ APP_DATA_DEFAULTS = {
     "daily_report_state": {},
 }
 
+SAVE_RETRY_ATTEMPTS = 8
+SAVE_RETRY_DELAY_SECONDS = 0.2
+
 LEGACY_JSON_SECTIONS = {
     "credentials": CREDENTIALS_FILE,
     "telegram_settings": TELEGRAM_SETTINGS_FILE,
@@ -82,21 +87,51 @@ def load_app_data():
 
 
 def save_app_data(data):
+    temp_path = None
     try:
         normalized = default_app_data()
         if isinstance(data, dict):
             normalized.update(data)
         normalized["_updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        os.makedirs(os.path.dirname(TAKSKLAD_DATA_FILE), exist_ok=True)
-        temp_path = TAKSKLAD_DATA_FILE + ".tmp"
-        with open(temp_path, "w", encoding="utf-8") as json_file:
+        data_dir = os.path.dirname(TAKSKLAD_DATA_FILE)
+        os.makedirs(data_dir, exist_ok=True)
+        fd, temp_path = tempfile.mkstemp(
+            prefix=os.path.basename(TAKSKLAD_DATA_FILE) + ".",
+            suffix=".tmp",
+            dir=data_dir,
+            text=True,
+        )
+        with os.fdopen(fd, "w", encoding="utf-8") as json_file:
             json.dump(normalized, json_file, ensure_ascii=False, indent=2)
-        os.replace(temp_path, TAKSKLAD_DATA_FILE)
+
+        last_error = None
+        for attempt in range(1, SAVE_RETRY_ATTEMPTS + 1):
+            try:
+                os.replace(temp_path, TAKSKLAD_DATA_FILE)
+                return True
+            except PermissionError as exc:
+                last_error = exc
+                if attempt >= SAVE_RETRY_ATTEMPTS:
+                    break
+                logging.warning(
+                    "Общий файл данных временно занят, повтор сохранения %s/%s",
+                    attempt,
+                    SAVE_RETRY_ATTEMPTS,
+                )
+                time.sleep(SAVE_RETRY_DELAY_SECONDS)
+        if last_error:
+            raise last_error
         return True
     except Exception:
         logging.exception("Не удалось сохранить общий файл данных: %s", TAKSKLAD_DATA_FILE)
         return False
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
 
 
 def load_data_section(section, default=None):

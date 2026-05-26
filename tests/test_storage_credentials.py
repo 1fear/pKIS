@@ -62,6 +62,34 @@ class StorageCredentialsTests(unittest.TestCase):
             storage.CREDENTIALS_FILE = original_credentials_file
             storage.TAKSKLAD_DATA_FILE = original_data_file
 
+    def test_save_app_data_retries_when_replace_is_temporarily_locked(self):
+        original_data_file = storage.TAKSKLAD_DATA_FILE
+        original_replace = storage.os.replace
+        original_delay = storage.SAVE_RETRY_DELAY_SECONDS
+        try:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                tmp_path = Path(tmp_dir)
+                storage.TAKSKLAD_DATA_FILE = str(tmp_path / "TakSklad_data.json")
+                storage.SAVE_RETRY_DELAY_SECONDS = 0
+                calls = []
+
+                def flaky_replace(src, dst):
+                    calls.append((src, dst))
+                    if len(calls) == 1:
+                        raise PermissionError("file is temporarily locked")
+                    return original_replace(src, dst)
+
+                storage.os.replace = flaky_replace
+
+                self.assertTrue(storage.save_app_data({"telegram_settings": {"enabled": True}}))
+                self.assertEqual(len(calls), 2)
+                saved = json.loads(Path(storage.TAKSKLAD_DATA_FILE).read_text(encoding="utf-8"))
+                self.assertEqual(saved["telegram_settings"], {"enabled": True})
+        finally:
+            storage.TAKSKLAD_DATA_FILE = original_data_file
+            storage.os.replace = original_replace
+            storage.SAVE_RETRY_DELAY_SECONDS = original_delay
+
 
 if __name__ == "__main__":
     unittest.main()
