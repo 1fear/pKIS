@@ -284,7 +284,8 @@ main ◄ почти все модули
 ### Phase 3: Introduce Extension Points (Backend on existing infra)
 
 - **Goal:** построить backend как контейнер в существующем Docker/Traefik-стеке и начать dual-write в Postgres параллельно Sheets.
-- **Tasks:** Backend API MVP (FastAPI): `/health`, сущности `orders/order_items/scan_codes/imports/pending_events/users/audit_log`, миграции Alembic; эндпоинты `GET /orders/active`, `POST /scans`, `POST /orders/{id}/complete`, `POST /imports`, `GET /reports/day`; публикация через Traefik (домен+HTTPS), Postgres из baseline, секреты в `.env`; desktop за репозиторием шлёт копию событий в backend, продолжая писать в Sheets; feature-флаги.
+- **Status 2026-05-30:** начат backend MVP-каркас: FastAPI shell, `/health`, контрактные endpoint'ы с `501`, SQLAlchemy-модели, init SQL-схема, Dockerfile, VDS compose, `.env.example`, тесты структуры. Это ещё не production backend.
+- **Tasks:** реализовать реальные endpoint'ы `GET /orders/active`, `POST /scans`, `POST /orders/{id}/complete`, `POST /imports`, `GET /reports/day`; добавить миграции Alembic или утверждённую миграционную процедуру; поднять compose на VDS через Traefik; desktop за репозиторием шлёт копию событий в backend, продолжая писать в Sheets; feature-флаги.
 - **Affected Areas:** новый `backend-api` (compose-сервис), `repositories/` (реализация backend) на desktop, `config.py` (адрес backend/флаги), `compose.yml`/Traefik-метки.
 - **Result:** сервер принимает события; данные копятся в Postgres без отказа от Sheets.
 - **Done Criteria:** `backend-api` поднят в compose за Traefik, `/health` по HTTPS отвечает; события сканов/импортов видны в Postgres; включение/выключение флагами без поломки desktop.
@@ -458,10 +459,10 @@ main ◄ почти все модули
 7. Зафиксировать инфраструктурный baseline в `docs/` (сделано в roadmap) и описать env/volumes/backup/restore/rollback по сервисам.
 8. Принять решения по разделу 15 (минимум: аутентификация backend, домены/доступ за Traefik, backup-политика) — это разблокирует Phase 3.
 
-Далее — Phase 2 (сервис-слой и репозитории) как подготовка к backend на уже готовой инфраструктуре.
+Далее — продолжать Phase 3: поднять backend compose на VDS, проверить `/health` через Traefik и реализовать первый endpoint записи событий в Postgres.
 
 ---
 
 ## Источники
 
-`docs/`: `project-knowledge-base.md`, `warehouse-ecosystem-roadmap.md`, `changelog.md`, `taksklad-full-functionality.md`, `skladbot-api-key-functionality.md`, `project-overview.md`, `roadmap.md`. Код: `config.py`, `main.py`, `sheets.py`, `skladbot.py`, `skladbot_sync.py`, `excel_import.py`, `excel_normalizer.py`, `orders.py`, `catalog.py`, `storage.py`, `geocoding.py`, `utils.py`; `version.json`, `requirements.txt`, `tests/`. Инфраструктурный чек-лист — предоставлен пользователем (infra context).
+`docs/`: `project-knowledge-base.md`, `warehouse-ecosystem-roadmap.md`, `changelog.md`, `taksklad-full-functionality.md`, `skladbot-api-key-functionality.md`, `project-overview.md`, `roadmap.md`. Код: `config.py`, `main.py`, `sheets.py`, `skladbot.py`, `skladbot_sync.py`, `excel_import.py`, `excel_normalizer.py`, `orders.py`, `catalog.py`, `storage.py`, `geocoding.py`, `utils.py`; `backend/`, `deploy/vds/`, `version.json`, `requirements.txt`, `tests/`. Инфраструктурный чек-лист — предоставлен пользователем (infra context).

@@ -1,0 +1,68 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../../backend/sql/001_initial_schema.sql:/docker-entrypoint-initdb.d/001_initial_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - taksklad-internal
+
+  backend-api:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      TAKSKLAD_ENV: ${TAKSKLAD_ENV}
+      TAKSKLAD_SERVICE_NAME: ${TAKSKLAD_SERVICE_NAME}
+      TAKSKLAD_API_TOKEN: ${TAKSKLAD_API_TOKEN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.taksklad-backend.rule=Host(`${TAKSKLAD_BACKEND_HOST}`)
+      - traefik.http.routers.taksklad-backend.entrypoints=websecure
+      - traefik.http.routers.taksklad-backend.tls.certresolver=letsencrypt
+      - traefik.http.services.taksklad-backend.loadbalancer.server.port=8000
+    networks:
+      - taksklad-internal
+      - traefik
+
+  adminer:
+    image: adminer:4
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.taksklad-adminer.rule=Host(`${TAKSKLAD_ADMINER_HOST}`)
+      - traefik.http.routers.taksklad-adminer.entrypoints=websecure
+      - traefik.http.routers.taksklad-adminer.tls.certresolver=letsencrypt
+      - traefik.http.services.taksklad-adminer.loadbalancer.server.port=8080
+    networks:
+      - taksklad-internal
+      - traefik
+
+volumes:
+  postgres_data:
+
+networks:
+  taksklad-internal:
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK:-traefik}

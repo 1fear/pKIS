@@ -2,6 +2,39 @@
 
 Здесь фиксируются все правки в коде TakSklad: что менялось, в каком файле, зачем, и какие тесты это покрывают. Записи идут от новых к старым.
 
+## 2026-05-30
+
+### Добавлен VDS/backend MVP-каркас без Windows-релиза
+
+**Файлы:** `.gitignore`, `backend/*`, `deploy/vds/*`, `tests/test_backend_skeleton.py`, `docs/*`.
+
+**Что стало:**
+
+- Добавлен FastAPI backend shell для будущего серверного TakSklad.
+- Реализован `GET /health`.
+- Зафиксированы контрактные endpoint'ы для активных заказов, сканов, завершения заказа, импортов и дневного отчёта. Реальной бизнес-логики в них пока нет, они возвращают `501 Not Implemented`.
+- Добавлены настройки backend через env и опциональная проверка сервисного Bearer-токена.
+- Добавлены SQLAlchemy-модели и стартовая PostgreSQL-схема для заказов, позиций, КИЗов, импортов, очередей, пользователей и аудита.
+- Добавлен Dockerfile и VDS Docker Compose под `postgres`, `backend-api`, `adminer` и Traefik routing.
+- Добавлен `.env.example` без реальных секретов.
+- `.gitignore` теперь игнорирует реальные `.env`-файлы.
+- Добавлены тесты backend-скелета, которые проверяют структуру, настройки, SQL-схему и compose без Docker.
+
+**Что специально не менялось:**
+
+- `version.json` не обновлялся и остаётся на `1.1.7`.
+- Windows-архив, GitHub Release, tag и push-уведомления не создавались.
+- Desktop пока не подключён к backend.
+
+**Проверки:**
+
+- `.venv/bin/python -m unittest tests/test_backend_skeleton.py` - 5 тестов пройдены.
+- `.venv/bin/python -m unittest discover -s tests` - 47 тестов пройдены.
+- `.venv/bin/python -m py_compile main.py sitecustomize.py taksklad/__init__.py src/taksklad/*.py tests/*.py backend/app/*.py` - успешно.
+- `git diff --check -- . ':!archive/**'` - успешно.
+- FastAPI smoke: `/health` вернул `200`, контрактный endpoint активных заказов вернул ожидаемый `501`.
+- Docker Compose runtime не проверен локально: Docker CLI отсутствует в текущем окружении.
+
 ## 2026-05-29
 
 ### Начато разбиение `main.py`

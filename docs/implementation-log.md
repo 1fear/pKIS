@@ -2,6 +2,83 @@
 
 Документ фиксирует ход работ: что сделано, что не сделано, какие ошибки найдены, какие решения приняты и что требует проверки. Новые записи добавляются сверху.
 
+## 2026-05-30
+
+### Начат VDS/backend MVP-каркас
+
+**Цель:** начать серверную линию без релиза Windows и без push-уведомлений рабочим компьютерам. Первый шаг - зафиксировать минимальный backend API, PostgreSQL-схему и Docker Compose под уже подготовленную VDS-инфраструктуру.
+
+**Пошаговый план этапа:**
+
+1. Завести backend-каркас с минимальным API-контрактом и healthcheck.
+2. Описать стартовую PostgreSQL-схему под заказы, позиции, КИЗы, импорты, очереди и аудит.
+3. Добавить Dockerfile и compose-стек для VDS: PostgreSQL, backend API, Adminer, Traefik labels.
+4. Добавить тесты, которые не требуют Docker и реальной базы, но проверяют структуру, env, схему и compose.
+5. Прогнать unit/smoke/static проверки и отдельно отметить, что не проверено локально.
+
+**Сделано:**
+
+- Добавлена папка `backend/` с FastAPI-приложением.
+- Реализован `GET /health`.
+- Зафиксированы контрактные endpoint'ы MVP, которые пока честно возвращают `501 Not Implemented`:
+  - `GET /api/v1/orders/active`
+  - `POST /api/v1/scans`
+  - `POST /api/v1/orders/{order_id}/complete`
+  - `POST /api/v1/imports`
+  - `GET /api/v1/imports`
+  - `GET /api/v1/reports/day`
+- Добавлена проверка сервисного Bearer-токена через `TAKSKLAD_API_TOKEN`; без токена авторизация отключена для локального smoke.
+- Добавлена стартовая SQL-схема `backend/sql/001_initial_schema.sql`:
+  - `users`
+  - `orders`
+  - `order_items`
+  - `scan_codes`
+  - `imports`
+  - `import_files`
+  - `pending_events`
+  - `audit_log`
+- Добавлены SQLAlchemy-модели под те же сущности.
+- Добавлен `deploy/vds/docker-compose.yml`:
+  - `postgres`
+  - `backend-api`
+  - `adminer`
+  - внутренний network `taksklad-internal`
+  - внешний network Traefik
+  - Postgres не публикуется наружу.
+- Добавлен `deploy/vds/.env.example` только с placeholder-значениями.
+- `.gitignore` расширен для `.env`/`.env.*`, при этом `.env.example` не игнорируется.
+- Добавлены тесты `tests/test_backend_skeleton.py`.
+
+**Решения:**
+
+- Backend пока не подключается к desktop-приложению. Рабочие компьютеры продолжают работать по текущей стабильной схеме.
+- Windows-архив, GitHub Release, tag и `version.json` не менялись. Рабочая линия автообновления остаётся закреплена на `1.1.7`.
+- Стартовая SQL-схема добавлена как init SQL для первого контейнера. Для следующих изменений потребуется Alembic или отдельная миграционная процедура.
+- Docker Compose публикует HTTP-сервис через Traefik, а не открывает backend/Postgres напрямую наружу.
+
+**Что не сделано:**
+
+- Нет CRUD-логики и записи сканов в Postgres.
+- Нет миграции существующих Google Sheets данных в Postgres.
+- Нет desktop feature flag для dual-write в backend.
+- Нет Telegram worker, SkladBot worker и report worker.
+- Нет backup/restore процедуры Postgres.
+- Docker Compose не был реально поднят локально, потому что Docker CLI в текущем окружении не установлен.
+
+**Проверки:**
+
+- `.venv/bin/python -m unittest tests/test_backend_skeleton.py` - 5 тестов пройдены.
+- `.venv/bin/python -m unittest discover -s tests` - 47 тестов пройдены.
+- `.venv/bin/python -m py_compile main.py sitecustomize.py taksklad/__init__.py src/taksklad/*.py tests/*.py backend/app/*.py` - успешно.
+- `python3 -m json.tool version.json` - успешно, манифест всё ещё `1.1.7`.
+- `git diff --check -- . ':!archive/**'` - успешно.
+- Поиск старого имени проекта вне архива - совпадений нет.
+- Локальный FastAPI smoke после установки backend-зависимостей:
+  - `GET http://127.0.0.1:8010/health` вернул `200` и `{"status":"ok"}`.
+  - `GET /api/v1/orders/active` вернул ожидаемый `501`.
+  - Проверка `TAKSKLAD_API_TOKEN`: без Bearer-токена `401`, с верным токеном доступ проходит.
+- SQLAlchemy metadata импортируется, таблицы схемы видны.
+
 ## 2026-05-29
 
 ### Продолжено разбиение `main.py`: печать и завершение дня

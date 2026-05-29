@@ -27,6 +27,18 @@ Roadmap implications:
 
 Ещё не сделано (вне baseline): backup-том и политика backup/restore с проверкой восстановления, healthchecks, rollback деплоя, и сама миграция приложения TakSklad (backend API, воркеры) на эту инфраструктуру.
 
+## Implementation Status 2026-05-30
+
+Начат первый кодовый слой под VDS:
+
+- `backend/` - FastAPI shell с `GET /health`, настройками env и MVP-контрактами API.
+- `backend/sql/001_initial_schema.sql` - стартовая PostgreSQL-схема для заказов, позиций, КИЗов, импортов, очередей, пользователей и аудита.
+- `deploy/vds/docker-compose.yml` - compose-стек для `postgres`, `backend-api`, `adminer` и Traefik labels.
+- `deploy/vds/.env.example` - шаблон env без реальных секретов.
+- `tests/test_backend_skeleton.py` - структура, env, schema и compose проверяются без Docker.
+
+Граница этапа: это каркас, а не production backend. Desktop ещё не шлёт события в backend и продолжает работать напрямую с Google Sheets. Следующий практический шаг - поднять compose на VDS, проверить `/health` через Traefik и затем реализовать первый real endpoint для записи сканов/импортов в Postgres.
+
 ## Strategic Decision 2026-05-29
 
 Так как проект в любом случае переходит на VDS, desktop-версия больше не является местом для крупных улучшений и глубокого рефакторинга.
