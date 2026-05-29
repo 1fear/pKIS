@@ -27,6 +27,8 @@ class BackendSkeletonTests(unittest.TestCase):
             "backend/sql/001_initial_schema.sql",
             "deploy/vds/docker-compose.yml",
             "deploy/vds/.env.example",
+            "deploy/traefik/docker-compose.yml",
+            "deploy/traefik/.env.example",
         ]
 
         for relative_path in required_paths:
@@ -77,6 +79,15 @@ class BackendSkeletonTests(unittest.TestCase):
         self.assertIn("adminer:", compose_text)
         self.assertIn("traefik.http.routers.taksklad-backend.rule", compose_text)
         self.assertNotIn("5432:5432", compose_text)
+
+    def test_traefik_compose_declares_https_gateway(self):
+        compose_text = (ROOT_DIR / "deploy/traefik/docker-compose.yml").read_text(encoding="utf-8")
+
+        self.assertIn("image: traefik:v3.6", compose_text)
+        self.assertIn('DOCKER_API_VERSION: "1.44"', compose_text)
+        self.assertIn("--providers.docker=true", compose_text)
+        self.assertIn("--entrypoints.websecure.address=:443", compose_text)
+        self.assertIn("--certificatesresolvers.letsencrypt.acme.httpchallenge=true", compose_text)
 
     def test_env_example_contains_placeholders_not_real_secrets(self):
         env_text = (ROOT_DIR / "deploy/vds/.env.example").read_text(encoding="utf-8")

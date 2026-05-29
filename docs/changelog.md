@@ -4,6 +4,25 @@
 
 ## 2026-05-30
 
+### Добавлен воспроизводимый Traefik-шаблон и зафиксирован VDS smoke-deploy
+
+**Файлы:** `deploy/traefik/*`, `docs/implementation-log.md`.
+
+**Что стало:**
+
+- Добавлен `deploy/traefik/docker-compose.yml` для серверного Traefik с HTTPS, Docker provider и Let's Encrypt.
+- Добавлен `deploy/traefik/.env.example` без секретов.
+- Зафиксирован фактический VDS smoke-deploy: Docker/Compose, UFW, Traefik, `postgres`, `backend-api`, временный `sslip.io`-домен.
+- Отдельно записано решение по Traefik: образ `v3.3` не работал с новым Docker API, сервер переведен на `traefik:v3.6`.
+
+**Проверки:**
+
+- На VDS `postgres` поднят и healthy.
+- На VDS `backend-api` поднят.
+- Внешний `GET /health` через HTTPS вернул `200`.
+- Без Bearer-токена защищенный endpoint вернул `401`.
+- С Bearer-токеном защищенный endpoint дошел до приложения и вернул ожидаемый MVP-ответ `501`.
+
 ### Зафиксирована локальная среда разработки ноутбука
 
 **Файлы:** `docs/local-development-setup.md`, `docs/implementation-log.md`.

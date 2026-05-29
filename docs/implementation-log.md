@@ -4,6 +4,50 @@
 
 ## 2026-05-30
 
+### Выполнен первичный VDS-deploy backend smoke
+
+**Цель:** подготовить сервер Ubuntu 24.04 под VDS-линию TakSklad и проверить, что минимальный backend-каркас реально поднимается за HTTPS без выкладки Windows-релиза.
+
+**Сделано:**
+
+- Данные доступа сохранены локально в `~/.taksklad/*.env` с правами `600`; в Git они не добавлялись.
+- По прямому указанию пароль root не менялся и вход по паролю не отключался.
+- На сервер добавлен SSH key для дальнейшего подключения без ввода пароля.
+- Проверена VDS: Ubuntu 24.04, Docker/Compose установлены, UFW включен.
+- В UFW разрешены только базовые входы для текущего этапа: `22`, `80`, `443`.
+- Создана внешняя Docker network `traefik`.
+- Поднят Traefik на временных `sslip.io`-доменах.
+- Backend-проект синхронизирован в `/opt/taksklad/app` без `.git`, `.venv`, секретов, логов, архивов и runtime-данных.
+- На сервере создан рабочий `/opt/taksklad/app/deploy/vds/.env` с реальными значениями; файл не хранится в Git.
+- Собраны и запущены контейнеры `postgres` и `backend-api`.
+- Добавлен воспроизводимый шаблон Traefik в `deploy/traefik/`.
+
+**Найденные ошибки и решения:**
+
+- Traefik `v3.3` не видел Docker provider на Docker API `1.54`: в логах была ошибка `client version 1.24 is too old`.
+- Решение: обновлен Traefik до `v3.6`; после этого маршрутизация backend заработала.
+- Для совместимости в шаблоне Traefik закреплен `DOCKER_API_VERSION=1.44`.
+
+**Проверки:**
+
+- `docker run --rm hello-world` на сервере - успешно.
+- `docker compose up -d --build postgres backend-api` на сервере - успешно.
+- Postgres container - `healthy`.
+- Внутренний `/health` из контейнера backend вернул `200`.
+- Внешний `https://api.135.181.245.84.sslip.io/health` вернул `200`.
+- Без Bearer-токена `GET /api/v1/orders/active` вернул `401`.
+- С Bearer-токеном запрос дошел до приложения и вернул ожидаемый MVP-ответ `501 Not Implemented`.
+- В Postgres созданы таблицы: `users`, `orders`, `order_items`, `scan_codes`, `imports`, `import_files`, `pending_events`, `audit_log`.
+- Наружу запущены только `traefik`, `backend-api`, `postgres`; Adminer не запускался.
+
+**Что не сделано:**
+
+- DNS домена `taksklad.uz` еще не настроен на сервер. Пока используется временный домен `sslip.io`.
+- Endpoint'ы бизнес-логики остаются MVP-заглушками `501`.
+- Desktop-приложение не подключалось к backend.
+- Backup/restore Postgres еще не настроены.
+- Adminer не опубликован наружу.
+
 ### Настроена локальная среда разработки на ноутбуке
 
 **Цель:** поставить на ноут всё необходимое для текущего проекта: desktop-разработка, backend-разработка, Docker/Compose для локальной проверки VDS-стека и GitHub-доступ.
