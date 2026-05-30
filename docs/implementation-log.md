@@ -4,6 +4,52 @@
 
 ## 2026-05-30
 
+### Подготовлены backend import/history и Postgres backup для VDS-релиза
+
+**Цель:** закрыть основные блокеры перед релизной приемкой VDS-линии: backend должен уметь сам наполнять `orders/order_items`, хранить историю импортов и иметь ручную процедуру backup/restore.
+
+**Сделано:**
+
+- Реализован `POST /api/v1/imports`.
+- Реализован `GET /api/v1/imports`.
+- Импорт принимает строки текущего desktop/Excel/Google-формата с русскими колонками.
+- Несколько товаров одного клиента/адреса/даты/оплаты группируются в один заказ с несколькими позициями.
+- Повторный импорт той же позиции не создает дубль.
+- Невалидные строки считаются отдельно и возвращаются в `errors`.
+- Результат импорта пишется в таблицу `imports`.
+- Импорт пишет событие в `audit_log`.
+- Добавлены `deploy/vds/backup_postgres.sh` и `deploy/vds/restore_postgres.sh`.
+- Добавлен документ `docs/vds-release-readiness.md`.
+
+**Что не сделано:**
+
+- `GET /api/v1/reports/day` пока остается заглушкой `501`.
+- Автоматический cron/systemd backup не включался.
+- Desktop пока не подключался к backend.
+- SkladBot worker ещё не перенесён на сервер.
+
+**Проверки:**
+
+- `.venv/bin/python -m unittest tests/test_backend_api_persistence.py` - 5 тестов пройдены.
+- `.venv/bin/python -m unittest discover -s tests` - 53 теста пройдены.
+- `.venv/bin/python -m py_compile main.py sitecustomize.py taksklad/__init__.py src/taksklad/*.py tests/*.py backend/app/*.py` - успешно.
+- `docker compose --env-file deploy/vds/.env -f deploy/vds/docker-compose.yml config` - успешно.
+- `docker compose --env-file deploy/traefik/.env.example -f deploy/traefik/docker-compose.yml config` - успешно.
+- `bash -n deploy/vds/backup_postgres.sh` - успешно.
+- `bash -n deploy/vds/restore_postgres.sh` - успешно.
+- Локальный Docker/Postgres smoke с импортом:
+  - первый импорт двух строк - `201`;
+  - повторный импорт той же позиции - `201`, `duplicate_rows=1`, `items_created=0`;
+  - активный список после импорта - `200`, один заказ с двумя позициями;
+  - раннее завершение заказа - `409`;
+  - скан первой позиции - `201`;
+  - дубль КИЗ - `409`;
+  - завершение при недосканированной второй позиции - `409`;
+  - скан второй позиции - `201`;
+  - завершение заказа после всех сканов - `200`;
+  - история импортов - `200`;
+  - тестовый Docker-стек остановлен через `docker compose down -v`.
+
 ### Реализован первый слой backend-бизнес-логики заказов и КИЗ
 
 **Цель:** заменить часть MVP-заглушек реальной Postgres-логикой, не подключая пока desktop-приложение и не делая Windows-релиз.

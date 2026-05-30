@@ -64,5 +64,28 @@ class ImportCreate(BaseModel):
     rows: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class ImportRead(BaseModel):
+    id: str
+    source: str
+    status: str
+    rows_total: int
+    rows_imported: int
+    raw_payload: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+
+
+class ImportResult(BaseModel):
+    id: str
+    source: str
+    status: str
+    rows_total: int
+    rows_imported: int
+    orders_created: int
+    items_created: int
+    duplicate_rows: int
+    invalid_rows: int
+    errors: list[str] = Field(default_factory=list)
+
+
 class NotImplementedResponse(BaseModel):
     detail: str

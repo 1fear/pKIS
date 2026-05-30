@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, status
 
 from .db import get_db
+from .imports_service import create_import as create_import_in_db
+from .imports_service import list_imports as list_imports_in_db
 from .orders_service import ApiError, complete_order as complete_order_in_db
 from .orders_service import create_scan as create_scan_in_db
 from .orders_service import list_active_orders as list_active_orders_in_db
-from .schemas import HealthResponse, ImportCreate, OrderRead, ScanCreate, ScanRead
+from .schemas import HealthResponse, ImportCreate, ImportRead, ImportResult, OrderRead, ScanCreate, ScanRead
 from .settings import APP_VERSION, load_settings
 
 
@@ -70,14 +72,14 @@ def complete_order(order_id: str, db=Depends(get_db)):
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
 
-@api.post("/imports")
-def create_import(payload: ImportCreate):
-    not_implemented("Excel import")
+@api.post("/imports", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
+def create_import(payload: ImportCreate, db=Depends(get_db)):
+    return create_import_in_db(db, payload)
 
 
-@api.get("/imports")
-def list_imports():
-    not_implemented("Import history")
+@api.get("/imports", response_model=list[ImportRead])
+def list_imports(db=Depends(get_db)):
+    return list_imports_in_db(db)
 
 
 @api.get("/reports/day")

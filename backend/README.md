@@ -37,11 +37,11 @@ Implemented now:
 - `GET /api/v1/orders/active`
 - `POST /api/v1/scans`
 - `POST /api/v1/orders/{order_id}/complete`
+- `POST /api/v1/imports`
+- `GET /api/v1/imports`
 
 Contract placeholders:
 
-- `POST /api/v1/imports`
-- `GET /api/v1/imports`
 - `GET /api/v1/reports/day`
 
-The remaining placeholders return `501 Not Implemented` until import and report persistence logic is added.
+The remaining placeholders return `501 Not Implemented` until report persistence logic is added.

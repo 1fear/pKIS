@@ -4,6 +4,28 @@
 
 ## 2026-05-30
 
+### Добавлен импорт заказов в Postgres, история импортов и backup-скрипты
+
+**Файлы:** `backend/app/imports_service.py`, `backend/app/main.py`, `backend/app/schemas.py`, `tests/test_backend_api_persistence.py`, `deploy/vds/backup_postgres.sh`, `deploy/vds/restore_postgres.sh`, `docs/vds-release-readiness.md`, `docs/*`.
+
+**Что стало:**
+
+- `POST /api/v1/imports` создает `orders` и `order_items` из текущего desktop/Excel/Google-формата.
+- `GET /api/v1/imports` возвращает историю импортов.
+- Импорт группирует несколько товаров в один заказ и пропускает дубли позиций.
+- Ошибочные строки возвращаются в `errors`, не ломая весь импорт.
+- Добавлены ручные backup/restore-скрипты Postgres для VDS.
+- Добавлен документ готовности VDS-линии к релизной приемке.
+
+**Проверки:**
+
+- `.venv/bin/python -m unittest tests/test_backend_api_persistence.py` - 5 тестов пройдены.
+- `.venv/bin/python -m unittest discover -s tests` - 53 теста пройдены.
+- `.venv/bin/python -m py_compile main.py sitecustomize.py taksklad/__init__.py src/taksklad/*.py tests/*.py backend/app/*.py` - успешно.
+- `bash -n deploy/vds/backup_postgres.sh` - успешно.
+- `bash -n deploy/vds/restore_postgres.sh` - успешно.
+- Локальный Docker/Postgres smoke с импортом, дублем, сканами и завершением заказа - успешно.
+
 ### Реализованы backend endpoint'ы активных заказов, сканов и завершения заказа
 
 **Файлы:** `backend/app/main.py`, `backend/app/orders_service.py`, `backend/app/models.py`, `backend/app/schemas.py`, `backend/requirements.txt`, `tests/test_backend_api_persistence.py`, `docs/*`.

@@ -129,6 +129,81 @@ class BackendApiPersistenceTests(unittest.TestCase):
             self.assertEqual(actions.count("scan_code_created"), 2)
             self.assertIn("order_completed", actions)
 
+    def test_import_creates_grouped_order_items_and_history(self):
+        rows = [
+            {
+                "Дата отгрузки": "30.05.2026",
+                "Тип оплаты": "cash",
+                "Клиент": "Import Client",
+                "Адрес": "Import Address",
+                "Торговый представитель": "Import Rep",
+                "Товары": "Product One",
+                "Кол-во ШТ": "20",
+                "Кол-во блок": "2",
+                "ID заказа": "source-order-1",
+                "ID импорта": "import-row-1",
+            },
+            {
+                "Дата отгрузки": "30.05.2026",
+                "Тип оплаты": "cash",
+                "Клиент": "Import Client",
+                "Адрес": "Import Address",
+                "Торговый представитель": "Import Rep",
+                "Товары": "Product Two",
+                "Кол-во ШТ": "10",
+                "Кол-во блок": "1",
+                "ID заказа": "source-order-2",
+                "ID импорта": "import-row-2",
+            },
+        ]
+
+        response = self.client.post("/api/v1/imports", json={"source": "excel", "filename": "orders.xlsx", "rows": rows})
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["status"], "completed")
+        self.assertEqual(payload["orders_created"], 1)
+        self.assertEqual(payload["items_created"], 2)
+        self.assertEqual(payload["duplicate_rows"], 0)
+
+        active = self.client.get("/api/v1/orders/active")
+        self.assertEqual(active.status_code, 200)
+        active_payload = active.json()
+        self.assertEqual(len(active_payload), 1)
+        self.assertEqual(active_payload[0]["client"], "Import Client")
+        self.assertEqual(len(active_payload[0]["items"]), 2)
+
+        history = self.client.get("/api/v1/imports")
+        self.assertEqual(history.status_code, 200)
+        self.assertEqual(len(history.json()), 1)
+        self.assertEqual(history.json()[0]["rows_imported"], 2)
+
+    def test_import_skips_duplicate_items_and_reports_invalid_rows(self):
+        valid_row = {
+            "Дата отгрузки": "2026-05-30",
+            "Тип оплаты": "cash",
+            "Клиент": "Duplicate Client",
+            "Адрес": "Duplicate Address",
+            "Товары": "Duplicate Product",
+            "Кол-во ШТ": 20,
+            "Кол-во блок": 2,
+            "ID заказа": "duplicate-source-order",
+        }
+        first = self.client.post("/api/v1/imports", json={"source": "excel", "rows": [valid_row]})
+        second = self.client.post("/api/v1/imports", json={"source": "excel", "rows": [valid_row, {"Клиент": "Broken"}]})
+
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(second.status_code, 201)
+        payload = second.json()
+        self.assertEqual(payload["items_created"], 0)
+        self.assertEqual(payload["duplicate_rows"], 1)
+        self.assertEqual(payload["invalid_rows"], 1)
+        self.assertEqual(payload["status"], "failed")
+
+        with self.SessionLocal() as db:
+            self.assertEqual(len(db.execute(select(Order)).scalars().all()), 1)
+            self.assertEqual(len(db.execute(select(OrderItem)).scalars().all()), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
