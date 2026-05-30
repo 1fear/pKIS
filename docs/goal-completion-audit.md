@@ -97,6 +97,12 @@
 
 Не доказан именно сценарий "живой пользователь отправил Excel в чат", потому что бот через Bot API не может сам создать себе входящее пользовательское сообщение. Для закрытия нужен ручной шаг: отправить Excel в Telegram-бот с пользовательского аккаунта.
 
+Для этой проверки подготовлен файл:
+
+`/Users/anton/Documents/work/TakSklad/outputs/taksklad_acceptance/TakSklad_Telegram_Acceptance_2026-05-31.xlsx`
+
+Runbook: `docs/manual-acceptance-runbook.md`.
+
 ### Windows Desktop UI
 
 Проверен web-frontend на VDS. Это доказывает backend/UI-путь VDS, но не доказывает desktop-приложение Windows.
@@ -113,6 +119,8 @@
 8. Проверка сценария "обновление списка во время сканирования".
 
 Чеклист: `docs/windows-backend-acceptance.md`.
+
+Короткий ручной сценарий также вынесен в `docs/manual-acceptance-runbook.md`.
 
 ### Создание Новой Заявки SkladBot
 
