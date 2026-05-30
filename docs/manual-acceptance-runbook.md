@@ -58,7 +58,21 @@
 
 `ACCEPTANCE TELEGRAM 20260531`
 
-Если очистку выполняет Codex, использовать только точечное удаление по этому маркеру.
+Сначала dry-run:
+
+```bash
+cd /opt/taksklad/app
+./deploy/vds/cleanup_acceptance_marker.sh "ACCEPTANCE TELEGRAM 20260531"
+```
+
+Если вывод показывает только ожидаемые тестовые строки, удалить:
+
+```bash
+cd /opt/taksklad/app
+./deploy/vds/cleanup_acceptance_marker.sh "ACCEPTANCE TELEGRAM 20260531" --apply
+```
+
+Скрипт отказывается работать с обычными маркерами без слов `ACCEPTANCE`, `WEB_UI_SMOKE` или `SMOKE_MVP`.
 
 ## 2. Windows Desktop Acceptance
 

@@ -1288,3 +1288,23 @@ cd /opt/taksklad/app
 **Ограничение:**
 
 - Это проверка web-frontend на VDS, а не Windows desktop UI.
+
+### Acceptance Cleanup Script
+
+**Дата:** 2026-05-31.
+
+**Цель:** после ручного Telegram/Windows acceptance можно безопасно проверить и удалить тестовые данные по маркеру, не трогая реальные заказы.
+
+**Сделано:**
+
+- Добавлен `deploy/vds/cleanup_acceptance_marker.sh`.
+- Скрипт по умолчанию работает в dry-run.
+- Удаление требует явный флаг `--apply`.
+- Защита от случайного запуска: marker должен содержать `ACCEPTANCE`, `WEB_UI_SMOKE` или `SMOKE_MVP`.
+- Runbook обновлён командами dry-run и apply.
+
+**Проверки:**
+
+- `bash -n deploy/vds/cleanup_acceptance_marker.sh` - OK.
+- Небезопасный marker `BAD_MARKER` отклонён.
+- VDS dry-run по `ACCEPTANCE TELEGRAM 20260531` успешно подключился к backend-api и вернул нули по `orders/imports/import_files/pending_events/audit_log`.
