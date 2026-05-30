@@ -33,6 +33,7 @@
 - Telegram worker хранит offset в Postgres и снимает будущий конфликт двух desktop `getUpdates`.
 - VDS compose расширен сервисами `skladbot-worker` и `telegram-worker`.
 - VDS staging пересобран и поднят с тремя backend-процессами: API, SkladBot worker, Telegram worker.
+- В Telegram worker отключены сторонние HTTP INFO-логи, чтобы transport-слой не писал секреты в URL.
 
 **Проверки 2026-05-30:**
 
@@ -58,6 +59,14 @@
 - DNS и Windows release вынесены в обязательные ручные acceptance-шаги.
 - Backend bridge сделан за feature flags, чтобы текущая desktop-линия не изменила поведение без явного включения.
 - VDS workers добавлены, но не ломают staging при отсутствии токенов.
+
+**Дополнение по ключам:**
+
+- Реальные Telegram/SkladBot ключи из локального `TakSklad_data.json` загружены в VDS `.env`.
+- `skladbot-worker` и `telegram-worker` перезапущены.
+- SkladBot API отвечает `200`.
+- Telegram worker запущен с token/chat allowlist.
+- DNS `taksklad.uz` всё ещё заблокирован: `dig +trace` показывает отсутствие делегации/зоны для домена на уровне `.uz`.
 
 ### Backend API MVP: дневной отчёт и автоматический backup
 

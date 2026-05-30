@@ -215,14 +215,12 @@ Done:
 Блокеры перед релизом:
 
 1. DNS `api.taksklad.uz` не резолвится; нужна A-запись `api -> 135.181.245.84`.
-2. На VDS нужно добавить реальные `SKLADBOT_API_TOKEN` и `TELEGRAM_BOT_TOKEN`.
-3. Telegram worker пока не выполняет полный авто-импорт Excel-вложений.
-4. Нужна ручная Windows-приёмка с backend flags.
-5. Windows archive и `version.json` не менять до приёмки.
+2. Telegram worker пока не выполняет полный авто-импорт Excel-вложений.
+3. Нужна ручная Windows-приёмка с backend flags.
+4. Windows archive и `version.json` не менять до приёмки.
 
 Следующий шаг:
 
 1. Настроить DNS.
-2. Добавить worker-токены на VDS.
-3. Прогнать реальную интеграционную проверку SkladBot/Telegram.
-4. Перейти к Windows acceptance для desktop backend bridge.
+2. Прогнать реальную интеграционную проверку SkladBot/Telegram на живых заказах.
+3. Перейти к Windows acceptance для desktop backend bridge.
