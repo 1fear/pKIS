@@ -38,6 +38,7 @@ services:
       - traefik.http.routers.taksklad-backend.entrypoints=websecure
       - traefik.http.routers.taksklad-backend.tls.certresolver=letsencrypt
       - traefik.http.services.taksklad-backend.loadbalancer.server.port=8000
+      - traefik.docker.network=${TRAEFIK_NETWORK:-traefik}
     networks:
       - taksklad-internal
       - traefik
@@ -54,6 +55,7 @@ services:
       - traefik.http.routers.taksklad-adminer.entrypoints=websecure
       - traefik.http.routers.taksklad-adminer.tls.certresolver=letsencrypt
       - traefik.http.services.taksklad-adminer.loadbalancer.server.port=8080
+      - traefik.docker.network=${TRAEFIK_NETWORK:-traefik}
     networks:
       - taksklad-internal
       - traefik

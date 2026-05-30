@@ -726,3 +726,35 @@ if not group_client or not request_recipient or group_client != request_recipien
 
 - `version.json` не повышался и остается на `1.1.7`.
 - Релиз, тег, Windows-архив и push-уведомление не создавались.
+
+### VDS staging: импорт заказов, backup и Traefik routing
+
+**Дата:** 2026-05-30.
+
+**Файлы:** `backend/app/main.py`, `backend/app/imports_service.py`, `backend/app/schemas.py`, `deploy/vds/docker-compose.yml`, `deploy/vds/backup_postgres.sh`, `deploy/vds/restore_postgres.sh`, `tests/test_backend_api_persistence.py`.
+
+**Что сделано:**
+
+- Добавлен `POST /api/v1/imports` для загрузки заказов в Postgres.
+- Добавлен `GET /api/v1/imports` для истории импортов.
+- Импорт поддерживает текущие русскоязычные поля desktop/Excel/Google-формата.
+- Заказы группируются по дате, клиенту, адресу, оплате, представителю и заявке SkladBot.
+- Повторный импорт той же позиции пропускается как дубль.
+- Добавлены ручные backup/restore-скрипты Postgres.
+- Для backend/adminer добавлен label `traefik.docker.network`, чтобы Traefik всегда проксировал через внешнюю Docker-сеть.
+
+**Тесты и smoke:**
+
+- Полный локальный набор: 53 теста пройдены.
+- py_compile прошел.
+- compose config для VDS и Traefik прошел.
+- shell syntax backup/restore прошел.
+- Локальный Docker/Postgres smoke прошел.
+- VDS staging smoke прошел: health, auth `401`, import, duplicate import, scans, duplicate scan, complete checks, import history, backup, cleanup.
+
+**Что не менялось:**
+
+- `version.json` не повышался.
+- Windows-архив не собирался.
+- GitHub Release/tag не создавался.
+- Push-уведомление рабочим компьютерам не отправлялось.

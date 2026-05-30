@@ -674,3 +674,61 @@
 **Что не получилось проверить здесь:**
 
 - Ручной Windows-smoke и реальные боевые интеграции Google/SkladBot/Telegram/печать не запускались в этой macOS-среде.
+
+### VDS-релизная подготовка: импорт, backup и staging smoke
+
+**Дата:** 2026-05-30.
+
+**Цель:** довести серверную часть до состояния, где ее можно проверять как staging-кандидат перед подключением desktop-приложения.
+
+**Сделано:**
+
+- Реализован backend-импорт заказов через `POST /api/v1/imports`.
+- Добавлена история импортов через `GET /api/v1/imports`.
+- Импорт создает `orders` и `order_items`, группирует товары одного клиента/адреса/даты/оплаты/заявки SkladBot в один заказ.
+- Повторный импорт той же позиции не создает дубль.
+- Невалидные строки возвращаются в `errors`, а итог импорта пишется в `imports` и `audit_log`.
+- Добавлены ручные скрипты backup/restore Postgres.
+- На VDS обновлен backend staging.
+- В `deploy/vds/docker-compose.yml` явно указана сеть Traefik через `traefik.docker.network=${TRAEFIK_NETWORK:-traefik}` для backend/adminer.
+
+**Почему добавлена явная сеть Traefik:**
+
+- После пересоздания backend-контейнера внешний `/health` начал зависать: TLS принимался, но ответ от backend не доходил.
+- Причина: backend подключен к двум сетям (`taksklad-internal` и `traefik`), и Traefik мог выбрать не ту сеть для проксирования.
+- Исправление закрепляет публичный route на сети `traefik`.
+
+**VDS smoke 2026-05-30:**
+
+- `/health` - `200`.
+- `/api/v1/orders/active` без Bearer-токена - `401`.
+- Импорт временного заказа - `201`.
+- Повторный импорт - `201`, дубль позиции не создает новую запись.
+- Завершение недосканированного заказа - `409`.
+- Первый scan - `201`.
+- Повторный scan того же КИЗ - `409`.
+- Второй scan - `201`.
+- Завершение после частичного скана - `409`.
+- Scan второй позиции - `201`.
+- Завершение после полного скана - `200`.
+- История импортов - `200`.
+- Ручной backup Postgres создал backup-файл.
+- Smoke-данные удалены, проверка staging БД показала `orders=0 imports=0` для временного `vds-release-smoke`.
+
+**Локальные проверки 2026-05-30:**
+
+- `.venv/bin/python -m unittest discover -s tests` - успешно.
+- `.venv/bin/python -m py_compile main.py sitecustomize.py taksklad/__init__.py src/taksklad/*.py tests/*.py backend/app/*.py` - успешно.
+- `docker compose --env-file deploy/vds/.env -f deploy/vds/docker-compose.yml config` - успешно.
+- `docker compose --env-file deploy/traefik/.env.example -f deploy/traefik/docker-compose.yml config` - успешно.
+- `bash -n deploy/vds/backup_postgres.sh` - успешно.
+- `bash -n deploy/vds/restore_postgres.sh` - успешно.
+- `git diff --check -- . ':!archive/**'` - успешно.
+
+**Что не готово для production:**
+
+- DNS `api.taksklad.uz` еще не направлен на VDS.
+- Desktop еще не подключен к backend через feature flag.
+- SkladBot worker еще не перенесен на сервер.
+- `GET /api/v1/reports/day` пока остается заглушкой.
+- Автоматический cron/systemd backup и restore-drill еще не настроены.
