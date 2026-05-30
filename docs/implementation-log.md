@@ -4,6 +4,43 @@
 
 ## 2026-05-30
 
+### Backend API MVP: дневной отчёт и автоматический backup
+
+**Дата:** 2026-05-30.
+
+**Цель:** закрыть последний backend MVP endpoint и добавить минимальную эксплуатационную защиту данных на VDS.
+
+**Сделано:**
+
+- Реализован `GET /api/v1/reports/day`.
+- Отчёт строится из Postgres и не зависит от Google Sheets.
+- Отчёт включает заказы выбранной даты и заказы, по которым были сканы в выбранную дату.
+- Возвращаются totals по заказам, позициям, плану блоков, сканам, остаткам и группам оплаты.
+- Добавлен systemd timer `taksklad-postgres-backup.timer`.
+- На VDS timer включен, ручной запуск backup service создал backup-файл.
+- Backend на VDS пересобран и поднят.
+- VDS smoke `/reports/day` прошел на временном заказе.
+- Smoke-данные удалены из staging БД.
+
+**Проверки 2026-05-30:**
+
+- `.venv/bin/python -m unittest discover -s tests` - 55 тестов пройдены.
+- `.venv/bin/python -m py_compile main.py sitecustomize.py taksklad/__init__.py src/taksklad/*.py tests/*.py backend/app/*.py` - успешно.
+- `docker compose --env-file deploy/vds/.env -f deploy/vds/docker-compose.yml config` - успешно.
+- `docker compose --env-file deploy/traefik/.env.example -f deploy/traefik/docker-compose.yml config` - успешно.
+- `bash -n deploy/vds/backup_postgres.sh deploy/vds/restore_postgres.sh deploy/vds/install_backup_timer.sh` - успешно.
+- `git diff --check -- . ':!archive/**'` - успешно.
+- VDS smoke: health `200`, protected report без токена `401`, import `201`, scans `201`, complete `200`, report `200`, cleanup `0/0`.
+
+**Что остается после MVP:**
+
+- Настроить DNS `api.taksklad.uz`.
+- Подключить desktop к backend через feature flag.
+- Включить dual-write сканов: локально + backend.
+- Вынести SkladBot worker на сервер.
+- Провести restore-drill на отдельной временной БД.
+- Пройти ручную приемку на реальных заказах.
+
 ### Подготовлены backend import/history и Postgres backup для VDS-релиза
 
 **Цель:** закрыть основные блокеры перед релизной приемкой VDS-линии: backend должен уметь сам наполнять `orders/order_items`, хранить историю импортов и иметь ручную процедуру backup/restore.
@@ -730,5 +767,4 @@
 - DNS `api.taksklad.uz` еще не направлен на VDS.
 - Desktop еще не подключен к backend через feature flag.
 - SkladBot worker еще не перенесен на сервер.
-- `GET /api/v1/reports/day` пока остается заглушкой.
-- Автоматический cron/systemd backup и restore-drill еще не настроены.
+- Restore-drill еще не проводился.

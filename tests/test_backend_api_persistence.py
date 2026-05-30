@@ -204,6 +204,85 @@ class BackendApiPersistenceTests(unittest.TestCase):
             self.assertEqual(len(db.execute(select(Order)).scalars().all()), 1)
             self.assertEqual(len(db.execute(select(OrderItem)).scalars().all()), 1)
 
+    def test_day_report_summarizes_orders_scans_and_payment_groups(self):
+        rows = [
+            {
+                "Дата отгрузки": "30.05.2026",
+                "Тип оплаты": "Терминал",
+                "Клиент": "Report Client",
+                "Адрес": "Report Address",
+                "Торговый представитель": "Report Rep",
+                "Товары": "Report Product One",
+                "Кол-во ШТ": "20",
+                "Кол-во блок": "2",
+                "Номер заявки SkladBot": "WR-100",
+                "ID заказа": "report-source-order-1",
+            },
+            {
+                "Дата отгрузки": "30.05.2026",
+                "Тип оплаты": "Терминал",
+                "Клиент": "Report Client",
+                "Адрес": "Report Address",
+                "Торговый представитель": "Report Rep",
+                "Товары": "Report Product Two",
+                "Кол-во ШТ": "10",
+                "Кол-во блок": "1",
+                "Номер заявки SkladBot": "WR-100",
+                "ID заказа": "report-source-order-2",
+            },
+        ]
+        imported = self.client.post("/api/v1/imports", json={"source": "excel", "rows": rows})
+        self.assertEqual(imported.status_code, 201)
+
+        active = self.client.get("/api/v1/orders/active").json()
+        order_id = active[0]["id"]
+        item_ids = {item["product"]: item["id"] for item in active[0]["items"]}
+
+        scans = [
+            ("Report Product One", "010000000101"),
+            ("Report Product One", "010000000102"),
+            ("Report Product Two", "010000000201"),
+        ]
+        for product, code in scans:
+            response = self.client.post(
+                "/api/v1/scans",
+                json={
+                    "order_item_id": item_ids[product],
+                    "code": code,
+                    "scanned_at": "2026-05-30T12:00:00+00:00",
+                },
+            )
+            self.assertEqual(response.status_code, 201)
+
+        completed = self.client.post(f"/api/v1/orders/{order_id}/complete")
+        self.assertEqual(completed.status_code, 200)
+
+        report = self.client.get("/api/v1/reports/day?report_date=2026-05-30")
+
+        self.assertEqual(report.status_code, 200)
+        payload = report.json()
+        self.assertEqual(payload["report_date"], "2026-05-30")
+        self.assertEqual(payload["source"], "postgres")
+        self.assertEqual(payload["totals"]["orders"], 1)
+        self.assertEqual(payload["totals"]["completed_orders"], 1)
+        self.assertEqual(payload["totals"]["active_orders"], 0)
+        self.assertEqual(payload["totals"]["items"], 2)
+        self.assertEqual(payload["totals"]["completed_items"], 2)
+        self.assertEqual(payload["totals"]["planned_blocks"], 3)
+        self.assertEqual(payload["totals"]["scanned_blocks"], 3)
+        self.assertEqual(payload["totals"]["scanned_today"], 3)
+        self.assertEqual(payload["totals"]["remaining_blocks"], 0)
+        self.assertEqual(payload["totals"]["scan_codes"], 3)
+        self.assertEqual(payload["payment_groups"][0]["payment_group"], "terminal")
+        self.assertEqual(payload["payment_groups"][0]["orders"], 1)
+        self.assertEqual(payload["orders"][0]["skladbot_request_number"], "WR-100")
+
+    def test_day_report_rejects_invalid_report_date(self):
+        response = self.client.get("/api/v1/reports/day?report_date=not-a-date")
+
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("Invalid report_date", response.json()["detail"])
+
 
 if __name__ == "__main__":
     unittest.main()

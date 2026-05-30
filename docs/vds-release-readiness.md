@@ -19,18 +19,19 @@
   - `POST /api/v1/imports`;
   - `GET /api/v1/imports`;
   - `POST /api/v1/scans`;
-  - `POST /api/v1/orders/{order_id}/complete`.
+  - `POST /api/v1/orders/{order_id}/complete`;
+  - `GET /api/v1/reports/day`.
 - Добавлены backup/restore-скрипты Postgres.
+- Добавлен systemd timer для ежедневного Postgres backup.
 - VDS staging smoke с импортом, сканами, завершением заказа, backup и cleanup пройден.
 
 Не готово для production:
 
 - Desktop-приложение ещё не подключено к backend.
 - SkladBot worker ещё не перенесён на сервер.
-- `GET /api/v1/reports/day` пока остаётся заглушкой.
 - Нет Alembic-миграций; текущая схема рассчитана на стартовый deploy.
 - DNS `api.taksklad.uz` ещё не настроен.
-- Не настроен автоматический cron/systemd backup.
+- Не проведён restore-drill из backup-файла.
 - Не проведена ручная приемка на реальных заказах склада.
 
 ## Backend API
@@ -86,6 +87,19 @@
 - `invalid_rows`;
 - `errors`.
 
+### Дневной Отчёт
+
+`GET /api/v1/reports/day?report_date=YYYY-MM-DD`
+
+Возвращает сводку из Postgres:
+
+- заказы с `order_date` на выбранную дату;
+- заказы, по которым были сканы в выбранную дату;
+- план/скан/остаток по блокам;
+- количество сканов за день;
+- группировку по типу оплаты;
+- номера заявок SkladBot, если они пришли при импорте.
+
 ### Скан КИЗ
 
 `POST /api/v1/scans`
@@ -132,6 +146,24 @@ CONFIRM_RESTORE=YES ./deploy/vds/restore_postgres.sh /opt/taksklad/backups/postg
 
 Важно: restore очищает схему `public` и восстанавливает данные из backup-файла.
 
+### Автоматический Backup На VDS
+
+Установка timer:
+
+```bash
+cd /opt/taksklad/app
+./deploy/vds/install_backup_timer.sh
+```
+
+Проверка:
+
+```bash
+systemctl list-timers taksklad-postgres-backup.timer --no-pager
+systemctl status taksklad-postgres-backup.service --no-pager
+```
+
+По умолчанию backup запускается каждый день в `03:20` и хранит файлы `14` дней.
+
 ## Проверки Перед Релизной Приемкой
 
 Локально:
@@ -170,6 +202,7 @@ VDS staging smoke:
 - импорт временного заказа прошел;
 - повторный импорт не создал дубль позиции;
 - сканирование, дубль КИЗ и проверки завершения заказа отработали корректно;
+- `GET /api/v1/reports/day` вернул сводку по временным smoke-данным;
 - ручной backup создал backup-файл;
 - временные smoke-данные удалены из staging БД.
 
@@ -179,7 +212,7 @@ VDS staging smoke:
 
 1. Настроить DNS `api.taksklad.uz`.
 2. Добавить server-side SkladBot worker: сегодня/вчера, матчинг заявок, запись номера заявки в Postgres.
-3. Добавить `GET /api/v1/reports/day`.
-4. Подключить desktop к backend за feature flag.
-5. Включить dual-write сканов: локально + backend.
+3. Подключить desktop к backend за feature flag.
+4. Включить dual-write сканов: локально + backend.
+5. Провести restore-drill на отдельной временной БД.
 6. Провести ручную приемку на копии реальных заказов.

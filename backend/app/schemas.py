@@ -87,5 +87,53 @@ class ImportResult(BaseModel):
     errors: list[str] = Field(default_factory=list)
 
 
-class NotImplementedResponse(BaseModel):
-    detail: str
+class DayReportTotals(BaseModel):
+    orders: int
+    completed_orders: int
+    active_orders: int
+    items: int
+    completed_items: int
+    planned_blocks: int
+    scanned_blocks: int
+    scanned_today: int
+    remaining_blocks: int
+    scan_codes: int
+
+
+class DayReportPaymentGroup(BaseModel):
+    payment_group: str
+    payment_type: str
+    orders: int
+    planned_blocks: int
+    scanned_blocks: int
+    scanned_today: int
+    remaining_blocks: int
+    scan_codes: int
+
+
+class DayReportOrder(BaseModel):
+    id: str
+    order_date: date | None = None
+    payment_type: str
+    payment_group: str
+    client: str
+    address: str
+    representative: str | None = None
+    status: str
+    skladbot_request_number: str = ""
+    items: int
+    completed_items: int
+    planned_blocks: int
+    scanned_blocks: int
+    scanned_today: int
+    remaining_blocks: int
+    scan_codes: int
+
+
+class DayReportRead(BaseModel):
+    report_date: date
+    source: str
+    generated_at: datetime
+    totals: DayReportTotals
+    payment_groups: list[DayReportPaymentGroup] = Field(default_factory=list)
+    orders: list[DayReportOrder] = Field(default_factory=list)

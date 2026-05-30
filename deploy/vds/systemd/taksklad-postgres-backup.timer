@@ -1,0 +1,10 @@
+[Unit]
+Description=Run TakSklad PostgreSQL backup daily
+
+[Timer]
+OnCalendar=*-*-* 03:20:00
+Persistent=true
+Unit=taksklad-postgres-backup.service
+
+[Install]
+WantedBy=timers.target

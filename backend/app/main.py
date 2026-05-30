@@ -6,7 +6,17 @@ from .imports_service import list_imports as list_imports_in_db
 from .orders_service import ApiError, complete_order as complete_order_in_db
 from .orders_service import create_scan as create_scan_in_db
 from .orders_service import list_active_orders as list_active_orders_in_db
-from .schemas import HealthResponse, ImportCreate, ImportRead, ImportResult, OrderRead, ScanCreate, ScanRead
+from .reports_service import build_day_report
+from .schemas import (
+    DayReportRead,
+    HealthResponse,
+    ImportCreate,
+    ImportRead,
+    ImportResult,
+    OrderRead,
+    ScanCreate,
+    ScanRead,
+)
 from .settings import APP_VERSION, load_settings
 
 
@@ -44,13 +54,6 @@ def health():
 api = APIRouter(prefix="/api/v1", dependencies=[Depends(require_service_token)])
 
 
-def not_implemented(feature):
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail=f"{feature} is defined in the MVP contract but not implemented yet.",
-    )
-
-
 @api.get("/orders/active")
 def list_active_orders(db=Depends(get_db)) -> list[OrderRead]:
     return list_active_orders_in_db(db)
@@ -82,9 +85,12 @@ def list_imports(db=Depends(get_db)):
     return list_imports_in_db(db)
 
 
-@api.get("/reports/day")
-def day_report(report_date: str | None = None):
-    not_implemented("Day report")
+@api.get("/reports/day", response_model=DayReportRead)
+def day_report(report_date: str | None = None, db=Depends(get_db)):
+    try:
+        return build_day_report(db, report_date)
+    except ApiError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
 
 app.include_router(api)

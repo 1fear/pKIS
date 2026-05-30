@@ -39,9 +39,18 @@ Implemented now:
 - `POST /api/v1/orders/{order_id}/complete`
 - `POST /api/v1/imports`
 - `GET /api/v1/imports`
-
-Contract placeholders:
-
 - `GET /api/v1/reports/day`
 
-The remaining placeholders return `501 Not Implemented` until report persistence logic is added.
+No contract placeholders remain in the backend API MVP.
+
+## Day Report
+
+`GET /api/v1/reports/day?report_date=YYYY-MM-DD`
+
+Builds a PostgreSQL-based day summary:
+
+- orders for the selected order date;
+- orders scanned on the selected date;
+- planned/scanned/remaining blocks;
+- payment groups;
+- SkladBot request number if imported with the order.

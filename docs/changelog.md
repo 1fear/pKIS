@@ -758,3 +758,36 @@ if not group_client or not request_recipient or group_client != request_recipien
 - Windows-архив не собирался.
 - GitHub Release/tag не создавался.
 - Push-уведомление рабочим компьютерам не отправлялось.
+
+### Backend API MVP закрыт дневным отчётом и автоматическим backup
+
+**Дата:** 2026-05-30.
+
+**Файлы:** `backend/app/reports_service.py`, `backend/app/main.py`, `backend/app/schemas.py`, `tests/test_backend_api_persistence.py`, `deploy/vds/install_backup_timer.sh`, `deploy/vds/systemd/*`, `backend/README.md`.
+
+**Что сделано:**
+
+- `GET /api/v1/reports/day` больше не заглушка `501`.
+- Дневной отчёт строится из Postgres по заказам, позициям и сканам.
+- В отчёт попадают заказы выбранной даты и заказы, по которым были сканы в выбранную дату.
+- Возвращаются totals: заказы, активные/закрытые заказы, позиции, план блоков, отсканировано, сканы за день, остаток, количество КИЗ.
+- Добавлена группировка по типу оплаты: `terminal`, `transfer`, `unknown`.
+- В строках заказов сохраняется номер заявки SkladBot, если он был импортирован.
+- Добавлен systemd timer `taksklad-postgres-backup.timer` для ежедневного backup Postgres на VDS.
+
+**Тесты и smoke:**
+
+- Полный локальный набор: 55 тестов пройдены.
+- py_compile прошел.
+- compose config для VDS и Traefik прошел.
+- shell syntax backup/restore/install scripts прошел.
+- VDS staging пересобран и поднят.
+- systemd backup timer включен, ручной запуск service создал backup-файл.
+- VDS smoke для `/reports/day` прошел на временном заказе; smoke-данные удалены.
+
+**Что не менялось:**
+
+- `version.json` не повышался.
+- Windows-архив не собирался.
+- GitHub Release/tag не создавался.
+- Push-уведомление рабочим компьютерам не отправлялось.
