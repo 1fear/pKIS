@@ -1308,3 +1308,30 @@ cd /opt/taksklad/app
 - `bash -n deploy/vds/cleanup_acceptance_marker.sh` - OK.
 - Небезопасный marker `BAD_MARKER` отклонён.
 - VDS dry-run по `ACCEPTANCE TELEGRAM 20260531` успешно подключился к backend-api и вернул нули по `orders/imports/import_files/pending_events/audit_log`.
+
+### Финальная Фиксация Рисков Chapman-Процесса
+
+**Дата:** 2026-05-31.
+
+**Что зафиксировано после уточнения Антона:**
+
+- Smartup/Excel не обязан содержать отдельный файл отгрузки: дату отгрузки задаёт менеджер в Telegram.
+- Для SkladBot все количества приводятся к блокам; пачки/штуки напрямую со SkladBot не сравниваются.
+- Товар сравнивается по нормализованным признакам Chapman: цвет `brown`/`red`/`gold` и формат `OP`/`SSL`.
+- Адрес остаётся мягким признаком, не главным блокирующим критерием SkladBot-матчинга.
+- В логистический отчёт должны попадать координаты доставки, не адрес.
+
+**Документы обновлены:**
+
+- `docs/project-knowledge-base.md` - добавлены утверждённые правила Chapman-процесса.
+- `docs/project-architecture.md` - добавлен ADR-012 и риск логистического отчёта без координат.
+- `docs/product-mvp-2.0-plan.md` - правила добавлены в обязательный scope MVP 2.0.
+
+**Проверки:**
+
+- `.venv/bin/python -m unittest discover -s tests` - 74 теста OK.
+- `.venv/bin/python -m py_compile backend/app/*.py tests/*.py` - OK.
+- `git diff --check` - OK.
+- `npm run build` в `frontend/` - OK.
+- `bash -n deploy/vds/*.sh` для рабочих deploy/backup/restore/cleanup скриптов - OK.
+- `docker compose --env-file deploy/vds/.env.example -f deploy/vds/docker-compose.yml config` - OK.
