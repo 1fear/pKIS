@@ -25,6 +25,19 @@ KIZ_REPORT_HEADERS = [
     "Источник файла",
 ]
 
+KIZ_SUMMARY_HEADERS = [
+    "Дата отгрузки",
+    "Номер заявки SkladBot",
+    "Клиент",
+    "Адрес",
+    "Координаты",
+    "Тип оплаты",
+    "План блоков",
+    "Отсканировано блоков",
+    "Цена заказа",
+    "Источник файла",
+]
+
 
 def list_completed_kiz_source_files(db: Session):
     groups = group_items_by_source_file(load_items(db))
@@ -64,8 +77,13 @@ def build_kiz_source_file_report_xlsx(db: Session, source_file: str):
         raise ApiError(409, f"Source file {source_file} is not fully completed")
 
     workbook = Workbook()
-    default_sheet = workbook.active
-    workbook.remove(default_sheet)
+    summary_sheet = workbook.active
+    summary_sheet.title = "Сводка"
+    summary_sheet.append(KIZ_SUMMARY_HEADERS)
+    apply_header_style(summary_sheet)
+    for row in build_summary_rows(items, source_file):
+        summary_sheet.append(row)
+    autosize_columns(summary_sheet)
 
     grouped = {}
     for item in items:
@@ -99,6 +117,36 @@ def build_kiz_source_file_report_xlsx(db: Session, source_file: str):
     buffer = BytesIO()
     workbook.save(buffer)
     return buffer.getvalue(), kiz_source_file_report_filename(source_file)
+
+
+def build_summary_rows(items, source_file):
+    grouped = {}
+    for item in items:
+        if not item.order:
+            continue
+        grouped.setdefault(item.order.id, {"order": item.order, "items": []})["items"].append(item)
+
+    rows = []
+    for group in sorted(grouped.values(), key=lambda value: (str(value["order"].order_date or ""), value["order"].client)):
+        order = group["order"]
+        order_items = group["items"]
+        order_raw = order.raw_payload or {}
+        planned_blocks = sum(max(0, item.quantity_blocks or 0) for item in order_items)
+        scanned_blocks = sum(max(0, item.scanned_blocks or 0) for item in order_items)
+        order_total = sum(parse_int((item.raw_payload or {}).get("line_total")) for item in order_items)
+        rows.append([
+            order.order_date.strftime("%d.%m.%Y") if order.order_date else "",
+            order_raw.get("skladbot_request_number") or "",
+            order.client,
+            order.address,
+            order_raw.get("coordinates") or "",
+            order.payment_type,
+            planned_blocks,
+            scanned_blocks,
+            order_total,
+            source_file,
+        ])
+    return rows
 
 
 def load_items(db: Session):

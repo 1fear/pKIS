@@ -341,15 +341,63 @@ class BackendApiPersistenceTests(unittest.TestCase):
         sheet = workbook["Заявки"]
 
         self.assertEqual(sheet["C2"].value, "Logistics Client")
-        self.assertEqual(sheet["G2"].value, "41.31, 69.27")
+        self.assertEqual(sheet["G2"].value, "41.31,69.27")
         self.assertEqual(sheet["J2"].value, "30.05.2026")
         self.assertEqual(sheet["R2"].value, "Chapman Brown OP 20")
         self.assertEqual(sheet["S2"].value, 200)
         self.assertEqual(sheet["V2"].value, 24000)
         self.assertEqual(sheet["W2"].value, 4_800_000)
-        self.assertEqual(sheet["AE2"].value, "41.31, 69.27")
+        self.assertEqual(sheet["AE2"].value, "41.31,69.27")
         self.assertEqual(sheet["AF2"].value, "41.31")
         self.assertEqual(sheet["AG2"].value, "69.27")
+        workbook.close()
+
+    def test_logistics_report_requires_coordinates(self):
+        rows = [
+            {
+                "Дата отгрузки": "2026-05-30",
+                "Тип оплаты": "Терминал",
+                "Клиент": "No Coordinates Client",
+                "Адрес": "Tashkent Address",
+                "Товары": "Chapman Brown OP 20",
+                "Кол-во ШТ": "20",
+                "Кол-во блок": "2",
+                "ID заказа": "no-coordinates-order",
+            },
+        ]
+        imported = self.client.post("/api/v1/imports", json={"source": "excel", "filename": "orders.xlsx", "rows": rows})
+        self.assertEqual(imported.status_code, 201)
+
+        report = self.client.get("/api/v1/logistics/report?shipment_date=2026-05-30")
+
+        self.assertEqual(report.status_code, 409)
+        self.assertIn("Missing coordinates", report.json()["detail"])
+
+    def test_logistics_report_normalizes_three_part_coordinates(self):
+        rows = [
+            {
+                "Дата отгрузки": "2026-05-30",
+                "Тип оплаты": "Терминал",
+                "Клиент": "Coordinates Client",
+                "Адрес": "Tashkent Address",
+                "Координаты": "41.214609,69.223027,15",
+                "Товары": "Chapman Brown OP 20",
+                "Кол-во ШТ": "10",
+                "Кол-во блок": "1",
+                "ID заказа": "coordinates-order",
+            },
+        ]
+        imported = self.client.post("/api/v1/imports", json={"source": "excel", "filename": "orders.xlsx", "rows": rows})
+        self.assertEqual(imported.status_code, 201)
+
+        report = self.client.get("/api/v1/logistics/report?shipment_date=2026-05-30")
+        self.assertEqual(report.status_code, 200)
+        workbook = openpyxl.load_workbook(BytesIO(report.content), data_only=True)
+        sheet = workbook["Заявки"]
+
+        self.assertEqual(sheet["AE2"].value, "41.214609,69.223027")
+        self.assertEqual(sheet["AF2"].value, "41.214609")
+        self.assertEqual(sheet["AG2"].value, "69.223027")
         workbook.close()
 
     def test_kiz_source_file_report_lists_only_completed_source_files(self):
@@ -396,6 +444,11 @@ class BackendApiPersistenceTests(unittest.TestCase):
         report = self.client.get("/api/v1/reports/kiz/source-file", params={"source_file": "source-a.xlsx"})
         self.assertEqual(report.status_code, 200)
         workbook = openpyxl.load_workbook(BytesIO(report.content), data_only=True)
+        summary = workbook["Сводка"]
+        self.assertEqual(summary["C2"].value, "KIZ Client")
+        self.assertEqual(summary["G2"].value, 2)
+        self.assertEqual(summary["H2"].value, 2)
+        self.assertEqual(summary["I2"].value, 480000)
         sheet = workbook["Терминал"]
         self.assertEqual(sheet["C2"].value, "KIZ Client")
         self.assertEqual(sheet["G2"].value, "Chapman Brown OP 20")

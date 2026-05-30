@@ -1,3 +1,4 @@
+import re
 from io import BytesIO
 from re import sub
 
@@ -75,6 +76,14 @@ def build_logistics_report_xlsx(db: Session, shipment_date: str):
     ).scalars().all()
     if not orders:
         raise ApiError(404, f"No orders for shipment date {report_date.isoformat()}")
+    missing_coordinates = [
+        order.client
+        for order in orders
+        if not normalize_coordinates((order.raw_payload or {}).get("coordinates"))
+    ]
+    if missing_coordinates:
+        sample = ", ".join(missing_coordinates[:5])
+        raise ApiError(409, f"Missing coordinates for logistics report: {sample}")
 
     workbook = Workbook()
     sheet = workbook.active
@@ -123,7 +132,15 @@ def set_cell(row, one_based_index, value):
 
 
 def normalize_coordinates(value):
-    return str(value or "").strip()
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    numbers = re.findall(r"-?\d+(?:[.,]\d+)?", text)
+    if len(numbers) < 2:
+        return ""
+    latitude = numbers[0].replace(",", ".")
+    longitude = numbers[1].replace(",", ".")
+    return f"{latitude},{longitude}"
 
 
 def split_coordinates(value):

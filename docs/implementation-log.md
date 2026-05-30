@@ -1335,3 +1335,42 @@ cd /opt/taksklad/app
 - `npm run build` в `frontend/` - OK.
 - `bash -n deploy/vds/*.sh` для рабочих deploy/backup/restore/cleanup скриптов - OK.
 - `docker compose --env-file deploy/vds/.env.example -f deploy/vds/docker-compose.yml config` - OK.
+
+### Доработка После Финального Брифа Chapman
+
+**Дата:** 2026-05-31.
+
+**Что усилено в коде:**
+
+- `src/taksklad/skladbot.py`: адрес SkladBot больше не является блокирующим условием для desktop-синхронизации номеров заявок.
+- `src/taksklad/skladbot.py`: тип заявки принимается гибко для вариантов `Отгрузка 3PL` и `3PL отгрузка`.
+- `src/taksklad/geocoding.py`: адрес из Яндекс Геокодера очищается от страны `Узбекистан`.
+- `backend/app/logistics_service.py`: логистический отчёт не формируется без координат и нормализует координаты до пары `lat,lon`.
+- `backend/app/kiz_reports_service.py`: в КИЗ-отчёт по исходному файлу добавлен лист `Сводка` с суммой заказа, планом и фактом блоков.
+
+**Проверка реальных Excel-файлов из Telegram:**
+
+- `заказы 29.05 3 часть.xlsx`: 27 строк, 88 блоков, координаты есть, предупреждений 0.
+- `заказы 29.05. 2 часть.xlsx`: 41 строка, 74 блока, координаты есть, предупреждений 0.
+- `Шаблон_отправки_заказов_на_склад_26_05_2026_2ч.xlsx`: 21 строка, 78 блоков, координаты есть, предупреждений 0.
+- `Шаблон_отправки_заказов_на_склад_26_05_2026_1ч.xlsx`: 13 строк, 24 блока, координаты есть, предупреждений 0.
+- `Шаблон_отправки_заказов_на_склад_26_05_2026_1ч_терминал.xlsx`: 23 строки, 49 блоков, координаты есть, предупреждений 0.
+
+**Проверки:**
+
+- `.venv/bin/python -m unittest discover -s tests` - 79 тестов OK.
+- `.venv/bin/python -m py_compile backend/app/*.py src/taksklad/*.py tests/*.py` - OK.
+- `git diff --check` - OK.
+- `npm run build` в `frontend/` - OK.
+- `docker compose --env-file deploy/vds/.env.example -f deploy/vds/docker-compose.yml config` - OK.
+
+**VDS smoke после деплоя:**
+
+- VDS пересобран и поднят с обновлёнными `backend-api`, `telegram-worker`, `skladbot-worker`, `frontend`.
+- Создан smoke-заказ `SMOKE_MVP_CHAPMAN_20260531_0154`: 2 позиции, 3 блока, координаты `41.214609,69.223027,15`.
+- Логистический отчёт по `2026-05-31` отдал 2 строки с координатами `41.214609,69.223027`.
+- Через API записаны 3 КИЗа.
+- КИЗ-отчёт по исходному файлу сформирован, лист `Сводка` показал 3/3 блока и сумму `720000`.
+- Cleanup-скрипт удалил smoke-данные: `orders=1`, `imports=1`, `audit_log=1`; после удаления остаток `0`.
+- `https://api.135.181.245.84.sslip.io/health` вернул `200`.
+- Все VDS-сервисы после smoke в состоянии `running`.
