@@ -1575,3 +1575,31 @@ cd /opt/taksklad/app
 - `deploy/vds/wait_acceptance_marker.sh --help` - OK.
 - Небезопасный marker `BAD_MARKER` отклонён сразу, без ожидания timeout.
 - `tests.test_acceptance_excel_generator` проверяет наличие `telegram_wait` и `windows_wait` в manifest.
+
+### VDS Acceptance Kit Sync
+
+**Дата:** 2026-05-31.
+
+**Сделано:**
+
+- На VDS в `/opt/taksklad/app` загружены только acceptance-файлы и документация:
+  - `deploy/vds/wait_acceptance_marker.sh`;
+  - `deploy/vds/verify_acceptance_marker.sh`;
+  - `deploy/vds/cleanup_acceptance_marker.sh`;
+  - `outputs/taksklad_acceptance/*`;
+  - `tools/prepare_acceptance_kit.py`;
+  - `tools/generate_acceptance_excel.py`;
+  - runbook/audit/report docs.
+- `.env`, Postgres, контейнеры и `version.json` не менялись.
+- VDS рабочая копия не является git checkout, поэтому обновление сделано точечным `rsync`.
+
+**Проверки на VDS:**
+
+- `bash -n deploy/vds/*.sh` - OK.
+- `deploy/vds/wait_acceptance_marker.sh --help` - OK.
+- Небезопасный marker `BAD_MARKER` отклонён с exit `2`.
+- `wait_acceptance_marker.sh "ACCEPTANCE TELEGRAM 20260531" --timeout 5 --interval 1` - OK, текущий marker пустой и read-only verifier вернул `status=ok`.
+- `verify_acceptance_marker.sh "ACCEPTANCE TELEGRAM 20260531"` - OK, текущие `orders/imports/scan_codes/pending_events` равны `0`.
+- Excel SHA-256 на VDS: `4e7bc8540e45e9ce7c3465e138c063aa4168362e25f3c29c626e7c8ba9de8b4c`.
+- Backend health: `{"status":"ok","service":"taksklad-backend","version":"0.1.0","environment":"staging"}`.
+- VDS `version.json` остался на стабильной линии `1.1.7`, без release/update rollout.

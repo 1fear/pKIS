@@ -40,6 +40,7 @@
 | Wait acceptance verifier | Готово | `deploy/vds/wait_acceptance_marker.sh`, syntax check OK, включён в acceptance kit |
 | Acceptance Excel generator | Готово | `tools/generate_acceptance_excel.py`, тест `tests/test_acceptance_excel_generator.py` |
 | Acceptance kit для ручной проверки | Готово | `outputs/taksklad_acceptance/README.md`, `acceptance_manifest.json`, стабильный SHA-256 Excel |
+| Acceptance kit на VDS | Готово | файлы загружены в `/opt/taksklad/app`, VDS verifier/wait/help/safety проверены |
 
 ## Что Доказано
 
@@ -98,6 +99,7 @@
 - `tools/generate_acceptance_excel.py` пересобрал acceptance Excel, backend parser прочитал `2` строки, `3` блока, сумму `720000`, warnings `[]`.
 - `tools/prepare_acceptance_kit.py` пересобрал acceptance kit, manifest и README; SHA-256 Excel стабилен между повторными генерациями.
 - `deploy/vds/wait_acceptance_marker.sh` добавлен для ожидания ручного Telegram/Windows результата без изменений в базе.
+- Acceptance kit и wait-verifier загружены на VDS; `version.json` на VDS остался на `1.1.7`, контейнеры и БД не менялись.
 
 ## Что Не Доказано
 
