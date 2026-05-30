@@ -1374,3 +1374,22 @@ cd /opt/taksklad/app
 - Cleanup-скрипт удалил smoke-данные: `orders=1`, `imports=1`, `audit_log=1`; после удаления остаток `0`.
 - `https://api.135.181.245.84.sslip.io/health` вернул `200`.
 - Все VDS-сервисы после smoke в состоянии `running`.
+
+### Пост-Чек VDS После Финального Push
+
+**Дата:** 2026-05-31.
+
+**Проверено:**
+
+- GitHub branch и checkpoint-тег обновлены до `bce4f8a`.
+- `version.json`, Windows-архив и GitHub Release не трогались.
+- `https://api.135.181.245.84.sslip.io/health` вернул `200`.
+- VDS-сервисы `backend-api`, `frontend`, `postgres`, `skladbot-worker`, `telegram-worker` находятся в состоянии `running`.
+- Dry-run cleanup по маркерам `ACCEPTANCE TELEGRAM 20260531` и `SMOKE_MVP_CHAPMAN_20260531_0154` показал нули по `orders/imports/import_files/pending_events/audit_log`.
+- Свежие логи backend не содержат ошибок после smoke.
+- `skladbot-worker` корректно пишет `no active backend orders, skip SkladBot API`.
+
+**Что всё ещё не закрыто автоматикой:**
+
+- Реальная отправка Excel-файла в Telegram-бота от разрешённого пользовательского аккаунта.
+- Физическая Windows-приёмка desktop-приложения с backend flags.
